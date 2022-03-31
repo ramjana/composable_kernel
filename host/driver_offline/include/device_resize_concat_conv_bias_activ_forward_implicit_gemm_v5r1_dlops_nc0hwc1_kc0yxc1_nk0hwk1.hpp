@@ -83,7 +83,6 @@ struct ConvDesc
              InLeftPads in_left_pads_,
              InRightPads in_right_pads_)
     {
-
         in_n_c0_hi_wi_c1_desc  = in_n_c0_hi_wi_c1_desc_;
         wei_k_c0_y_x_c1_desc   = wei_k_c0_y_x_c1_desc_;
         out_n_k0_ho_wo_k1_desc = out_n_k0_ho_wo_k1_desc_;
@@ -285,11 +284,6 @@ void device_resize_concat_conv_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hw
             decltype(conv2_tuning_parameters),
             I1,
             activ_type>{};
-
-    // std::cerr << "input_"
-    //<< "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
-    //<< "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_out_n" << N << "k" << K0 << "h"
-    //<< Ho << "w" << Wo << "k" << K1 << std::endl;
 
     for(int i = 0; i < 5; i++)
     {

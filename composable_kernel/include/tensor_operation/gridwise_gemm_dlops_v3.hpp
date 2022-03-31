@@ -739,9 +739,9 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const auto H1 = HoPerBlock / HoPerThread;
         const auto H0 = Hx / (H1 * H2);
 
-        const auto W2 = WoPerThread / 2;
-        const auto W1 = WoPerBlock / WoPerThread;
-        const auto W0 = Wx / (W1 * W2);
+        const auto W2    = WoPerThread / 2;
+        const auto W1    = WoPerBlock / WoPerThread;
+        const auto W0    = Wx / (W1 * W2);
 #endif
 
         const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = transform_tensor_descriptor(
@@ -777,8 +777,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const auto H0 = Number<Hx / (H1 * H2)>{};
         const auto W0 = Number<Wx / (W1 * W2)>{};
 #else
-        const auto H0 = Hx / (H1 * H2);
-        const auto W0 = Wx / (W1 * W2);
+        const auto H0    = Hx / (H1 * H2);
+        const auto W0    = Wx / (W1 * W2);
 #endif
 
         const auto d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc = transform_tensor_descriptor(
@@ -796,21 +796,22 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     __host__ __device__ static constexpr auto
     MakeCBlockIdToKNHoWoBlockClusterAdaptor(const CGridDesc_K_N_Ho_Wo& c_k_n_ho_wo_grid_desc)
     {
-        const auto K  = c_k_n_ho_wo_grid_desc.GetLength(I0);
-        const auto N  = c_k_n_ho_wo_grid_desc.GetLength(I1);
-        const auto Ho = c_k_n_ho_wo_grid_desc.GetLength(I2);
-        const auto Wo = c_k_n_ho_wo_grid_desc.GetLength(I3);
+        const index_t K  = c_k_n_ho_wo_grid_desc.GetLength(I0);
+        const index_t N  = c_k_n_ho_wo_grid_desc.GetLength(I1);
+        const index_t Ho = c_k_n_ho_wo_grid_desc.GetLength(I2);
+        const index_t Wo = c_k_n_ho_wo_grid_desc.GetLength(I3);
 
 #if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
-        const auto K0 = Number<K / KPerBlock>{};
-        const auto N0 = Number<N / NPerBlock>{};
-        const auto H0 = Number<Ho / HoPerBlock>{};
-        const auto W0 = Number<Wo / WoPerBlock>{};
+        static_assert(c_k_n_ho_wo_grid_desc.IsKnownAtCompileTime(), "");
+        constexpr index_t K0 = Number<K / KPerBlock>{};
+        constexpr index_t N0 = Number<N / NPerBlock>{};
+        constexpr index_t H0 = Number<Ho / HoPerBlock>{};
+        constexpr index_t W0 = Number<Wo / WoPerBlock>{};
 #else
-        const auto K0 = K / KPerBlock;
-        const auto N0 = N / NPerBlock;
-        const auto H0 = Ho / HoPerBlock;
-        const auto W0 = Wo / WoPerBlock;
+        const index_t K0 = K / KPerBlock;
+        const index_t N0 = N / NPerBlock;
+        const index_t H0 = Ho / HoPerBlock;
+        const index_t W0 = Wo / WoPerBlock;
 #endif
 
         const auto c_blockid_to_k_n_ho_wo_block_cluster_adaptor = make_single_stage_tensor_adaptor(
