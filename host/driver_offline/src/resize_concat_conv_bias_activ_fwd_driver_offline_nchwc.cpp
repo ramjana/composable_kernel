@@ -125,13 +125,13 @@ int main(int argc, char* argv[])
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
-    constexpr auto I4 = Number<4>{};
-    constexpr auto I5 = Number<5>{};
-    constexpr auto I6 = Number<6>{};
-    constexpr auto I7 = Number<6>{};
-    constexpr auto I8 = Number<6>{};
+    // constexpr auto I2 = Number<2>{};
+    // constexpr auto I3 = Number<3>{};
+    // constexpr auto I4 = Number<4>{};
+    // constexpr auto I5 = Number<5>{};
+    // constexpr auto I6 = Number<6>{};
+    // constexpr auto I7 = Number<6>{};
+    // constexpr auto I8 = Number<6>{};
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
@@ -218,8 +218,8 @@ int main(int argc, char* argv[])
     constexpr auto N = Number<1>{};
 
     // input1
-    constexpr auto CONV1_Hi = Number<16>{};
-    constexpr auto CONV1_Wi = Number<64>{};
+    constexpr auto CONV1_Hi = Number<270>{};
+    constexpr auto CONV1_Wi = Number<480>{};
     constexpr auto CONV1_C0 = Number<10>{};
     constexpr auto CONV1_C1 = Number<8>{};
 
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
     constexpr auto Y  = Number<1>{};
     constexpr auto X  = Number<1>{};
-    constexpr auto K0 = Number<2>{};
+    constexpr auto K0 = Number<8>{};
     constexpr auto K1 = Number<8>{};
     constexpr auto K  = Number<K0 * K1>{};
 

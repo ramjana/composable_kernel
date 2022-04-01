@@ -10,93 +10,6 @@
 
 namespace ck {
 
-template <typename GridGemmTuningParameters_>
-void printTuningParameters()
-{
-    constexpr auto I0 = Number<0>{};
-    constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
-    constexpr auto I4 = Number<4>{};
-
-    std::cout
-        << "BlockSize_" << GridGemmTuningParameters_::BlockSize << "_E1_"
-        << GridGemmTuningParameters_::E1 << "_E2_" << GridGemmTuningParameters_::E2 << "_K2_"
-        << GridGemmTuningParameters_::K2 << "_KPerBlock_" << GridGemmTuningParameters_::KPerBlock
-        << "_HoPerBlock_" << GridGemmTuningParameters_::HoPerBlock << "_WoPerBlock_"
-        << GridGemmTuningParameters_::WoPerBlock << "_E0PerBlock_"
-        << GridGemmTuningParameters_::E0PerBlock << "_E1PerBlock_"
-        << GridGemmTuningParameters_::E1PerBlock << "_KPerThread_"
-        << GridGemmTuningParameters_::KPerThread << "_HoPerThread_"
-        << GridGemmTuningParameters_::HoPerThread << "_WoPerThread_"
-        << GridGemmTuningParameters_::WoPerThread << "_EPerThread_"
-        << GridGemmTuningParameters_::EPerThread << "_ABlockTransferThreadSliceLengths_<"
-        << GridGemmTuningParameters_::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I0] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I1] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I2] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I3] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I4] << ">"
-        << "_ABlockTransferThreadClusterLengths_<"
-        << GridGemmTuningParameters_::ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I0] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I1] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I2] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I3] << "_"
-        << GridGemmTuningParameters_::ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I4] << ">"
-        << "_ABlockTransferSrcScalarPerVector_E2_"
-        << GridGemmTuningParameters_::ABlockTransferSrcScalarPerVector_E2
-        << "_ABlockTransferDstScalarPerVector_E2_"
-        << GridGemmTuningParameters_::ABlockTransferDstScalarPerVector_E2
-        << "_BThreadTransferSrcScalarPerVector_E2_"
-        << GridGemmTuningParameters_::BThreadTransferSrcScalarPerVector_E2
-        << "_CThreadTransferDstScalarPerVector_K_"
-        << GridGemmTuningParameters_::CThreadTransferDstScalarPerVector_K << std::endl;
-}
-
-template <typename GemmDesc_>
-void printGemmDesc(GemmDesc_ conv_desc)
-{
-    constexpr auto I0 = Number<0>{};
-    constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
-    constexpr auto I4 = Number<4>{};
-
-    const auto in_n_c0_hi_wi_c1_global_desc = conv_desc.in_n_c0_hi_wi_c1_desc;
-
-    const auto N  = in_n_c0_hi_wi_c1_global_desc.GetLength(I0);
-    const auto C0 = in_n_c0_hi_wi_c1_global_desc.GetLength(I1);
-    const auto Hi = in_n_c0_hi_wi_c1_global_desc.GetLength(I2);
-    const auto Wi = in_n_c0_hi_wi_c1_global_desc.GetLength(I3);
-    const auto C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
-
-    const auto out_n_k0_ho_wo_k1_global_desc = conv_desc.out_n_k0_ho_wo_k1_desc;
-
-    const auto K0 = out_n_k0_ho_wo_k1_global_desc.GetLength(I1);
-    const auto Ho = out_n_k0_ho_wo_k1_global_desc.GetLength(I2);
-    const auto Wo = out_n_k0_ho_wo_k1_global_desc.GetLength(I3);
-    const auto K1 = out_n_k0_ho_wo_k1_global_desc.GetLength(I4);
-
-    const auto wei_k_c0_y_x_c1_global_desc = conv_desc.wei_k_c0_y_x_c1_desc;
-
-    const auto K = wei_k_c0_y_x_c1_global_desc.GetLength(I0);
-    const auto Y = wei_k_c0_y_x_c1_global_desc.GetLength(I2);
-    const auto X = wei_k_c0_y_x_c1_global_desc.GetLength(I3);
-
-    const auto ConvStrideH = conv_desc.conv_strides[I0];
-    const auto ConvStrideW = conv_desc.conv_strides[I1];
-
-    const auto ConvDilationH = conv_desc.conv_dilations[I0];
-    const auto ConvDilationW = conv_desc.conv_dilations[I1];
-
-    std::cout << "input_"
-              << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
-              << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_out_n" << N << "k" << K0 << "h"
-              << Ho << "w" << Wo << "k" << K1 << std::endl;
-
-    std::cout << "ConvStride = " << ConvStrideH << "," << ConvStrideW << std::endl;
-    std::cout << "ConvDilation = " << ConvDilationH << "," << ConvDilationW << std::endl;
-}
-
 template <typename GridwiseGemmDesc,
           typename AE0E1K0K1E2GridDesc,
           typename BE0E1NH0H1H2W0W1W2E2GridDesc,
@@ -159,9 +72,6 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
     constexpr auto I3 = Number<3>{};
     constexpr auto I4 = Number<4>{};
 
-    printTuningParameters<GridGemmTuningParameters>();
-    printGemmDesc(conv_desc);
-
     constexpr auto BlockSize = Number<GridGemmTuningParameters::BlockSize>{};
 
     constexpr auto E1 = Number<GridGemmTuningParameters::E1>{};
@@ -199,7 +109,7 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
     constexpr auto C0 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I1)>{};
     constexpr auto Hi = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I2)>{};
     constexpr auto Wi = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I3)>{};
-    constexpr auto C1 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I4)>{};
+    // constexpr auto C1 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I4)>{};
 
     constexpr auto out_n_k0_ho_wo_k1_global_desc = conv_desc.out_n_k0_ho_wo_k1_desc;
 

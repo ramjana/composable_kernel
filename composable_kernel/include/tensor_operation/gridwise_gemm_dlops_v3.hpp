@@ -340,8 +340,6 @@ __global__ void
                                         const FloatC* __restrict__ p_bias_global,
                                         FloatC* __restrict__ p_c_grid)
 {
-    // constexpr auto GemmArg1 = GemmArguments{};
-
     using GridwiseGemm1 = decltype(GemmArg1.gridwise_gemm_desc);
     using GridwiseGemm2 = decltype(GemmArg2.gridwise_gemm_desc);
 
@@ -349,14 +347,6 @@ __global__ void
         GridwiseGemm1::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
 
     __shared__ FloatAB p_shared_block[shared_block_size];
-
-    // constexpr auto a_e0_e1_k0_k1_e2_grid_desc = GemmArg1.a_e0_e1_k0_k1_e2_grid_desc;
-    // constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
-    // GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc;
-    // constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
-    // GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
-    // constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
-    // GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor;
 
     constexpr auto c_k1_n_h2_w2_thread_gemm_desc = GridwiseGemm1::MakeCK1NH2W2ThreadDescriptor();
 
@@ -438,27 +428,6 @@ __global__ void
     constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
         BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2{};
     constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc = CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2{};
-
-    // if(get_thread_local_1d_id() == 0)
-    //{
-    // const index_t E0 = a_e0_e1_k0_k1_e2_grid_desc.GetLength(Number<0>{});
-    // const index_t E1 = a_e0_e1_k0_k1_e2_grid_desc.GetLength(Number<1>{});
-    // const index_t K0 = a_e0_e1_k0_k1_e2_grid_desc.GetLength(Number<2>{});
-    // const index_t K1 = a_e0_e1_k0_k1_e2_grid_desc.GetLength(Number<3>{});
-    // const index_t E2 = a_e0_e1_k0_k1_e2_grid_desc.GetLength(Number<4>{});
-
-    // const index_t H0 = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(Number<3>{});
-    // const index_t H1 = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(Number<4>{});
-    // const index_t H2 = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(Number<5>{});
-
-    // const index_t W0 = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(Number<6>{});
-    // const index_t W1 = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(Number<7>{});
-    // const index_t W2 = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetLength(Number<8>{});
-
-    // printf("a: E0: %d E1: %d K0: %d K1: %d E2: %d\n", E0, E1, K0, K1, E2);
-
-    // printf("b: H0: %d H1: %d H2: %d W0: %d W1: %d W2: %d\n", H0, H1, H2, W0, W1, W2);
-    //}
 
     constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
         CBlockIdToBlockClusterAdaptor_K_N_H_W{};

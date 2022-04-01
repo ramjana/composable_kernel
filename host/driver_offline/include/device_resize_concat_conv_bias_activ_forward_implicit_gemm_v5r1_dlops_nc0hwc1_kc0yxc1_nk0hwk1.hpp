@@ -54,6 +54,40 @@ struct GridGemmTuningParameters
         BThreadTransferSrcScalarPerVector_E2_;
     static constexpr auto CThreadTransferDstScalarPerVector_K =
         CThreadTransferDstScalarPerVector_K_;
+
+    void printTuningParameters()
+    {
+        using namespace ck;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+
+        std::cout << "BlockSize_" << BlockSize << "_E1_" << E1 << "_E2_" << E2 << "_K2_" << K2
+                  << "_KPerBlock_" << KPerBlock << "_HoPerBlock_" << HoPerBlock << "_WoPerBlock_"
+                  << WoPerBlock << "_E0PerBlock_" << E0PerBlock << "_E1PerBlock_" << E1PerBlock
+                  << "_KPerThread_" << KPerThread << "_HoPerThread_" << HoPerThread
+                  << "_WoPerThread_" << WoPerThread << "_EPerThread_" << EPerThread
+                  << "_ABlockTransferThreadSliceLengths_<"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I0] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I1] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I2] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I3] << "_"
+                  << ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2[I4] << ">"
+                  << "_ABlockTransferThreadClusterLengths_<"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I0] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I1] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I2] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I3] << "_"
+                  << ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2[I4] << ">"
+                  << "_ABlockTransferSrcScalarPerVector_E2_" << ABlockTransferSrcScalarPerVector_E2
+                  << "_ABlockTransferDstScalarPerVector_E2_" << ABlockTransferDstScalarPerVector_E2
+                  << "_BThreadTransferSrcScalarPerVector_E2_"
+                  << BThreadTransferSrcScalarPerVector_E2 << "_CThreadTransferDstScalarPerVector_K_"
+                  << CThreadTransferDstScalarPerVector_K << std::endl;
+    }
 };
 
 template <typename InLengths,
@@ -90,6 +124,46 @@ struct ConvDesc
         conv_dilations         = conv_dilations_;
         in_left_pads           = in_left_pads_;
         in_right_pads          = in_right_pads_;
+    }
+
+    void printConvDesc()
+    {
+        using namespace ck;
+
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+
+        const auto N  = in_n_c0_hi_wi_c1_desc.GetLength(I0);
+        const auto C0 = in_n_c0_hi_wi_c1_desc.GetLength(I1);
+        const auto Hi = in_n_c0_hi_wi_c1_desc.GetLength(I2);
+        const auto Wi = in_n_c0_hi_wi_c1_desc.GetLength(I3);
+        const auto C1 = in_n_c0_hi_wi_c1_desc.GetLength(I4);
+
+        const auto K0 = out_n_k0_ho_wo_k1_desc.GetLength(I1);
+        const auto Ho = out_n_k0_ho_wo_k1_desc.GetLength(I2);
+        const auto Wo = out_n_k0_ho_wo_k1_desc.GetLength(I3);
+        const auto K1 = out_n_k0_ho_wo_k1_desc.GetLength(I4);
+
+        const auto K = wei_k_c0_y_x_c1_desc.GetLength(I0);
+        const auto Y = wei_k_c0_y_x_c1_desc.GetLength(I2);
+        const auto X = wei_k_c0_y_x_c1_desc.GetLength(I3);
+
+        const auto ConvStrideH = conv_strides[I0];
+        const auto ConvStrideW = conv_strides[I1];
+
+        const auto ConvDilationH = conv_dilations[I0];
+        const auto ConvDilationW = conv_dilations[I1];
+
+        std::cout << "input_"
+                  << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k"
+                  << K << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_out_n" << N << "k"
+                  << K0 << "h" << Ho << "w" << Wo << "k" << K1 << std::endl;
+
+        std::cout << "ConvStride = " << ConvStrideH << "," << ConvStrideW << std::endl;
+        std::cout << "ConvDilation = " << ConvDilationH << "," << ConvDilationW << std::endl;
     }
 };
 
@@ -258,6 +332,12 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                         in_left_pads,
                         in_right_pads);
 
+    conv1_tuning_parameters.printTuningParameters();
+    conv2_tuning_parameters.printTuningParameters();
+
+    conv1_desc.printConvDesc();
+    conv2_desc.printConvDesc();
+
     for(int i = 0; i < 5; i++)
     {
         const auto ave_time =
@@ -271,8 +351,8 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
         {
-            float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * CONV1_C0 * CONV2_C0 *
-                                            C1 * Y * X) /
+            float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo *
+                                            (CONV1_C0 + CONV2_C0) * C1 * Y * X) /
                          (std::size_t(1000) * 1000 * 1000) / ave_time;
 
             std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
