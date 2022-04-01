@@ -61,7 +61,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
 
     // blocksize = 256
-#if 0
+#if 1
     constexpr index_t BlockSize = 256;
 
     constexpr index_t E1 = C0 * Y * X;
@@ -79,9 +79,8 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = 1;
 
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 = Sequence<1, 1, 1, 1, C1>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
-        Sequence<1, C0 * Y * X, 1, KPerBlock, 1>;
+    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, Y * X, 1, 1, C1>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, C0, 1, KPerBlock, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
     constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;

@@ -67,7 +67,7 @@ void printGemmDesc(GemmDesc_ conv_desc)
     const auto Wo = out_n_k0_ho_wo_k1_global_desc.GetLength(I3);
     const auto K1 = out_n_k0_ho_wo_k1_global_desc.GetLength(I4);
 
-    const auto wei_k_c0_y_x_c1_global_desc = conv_desc.out_n_k0_ho_wo_k1_desc;
+    const auto wei_k_c0_y_x_c1_global_desc = conv_desc.wei_k_c0_y_x_c1_desc;
 
     const auto K = wei_k_c0_y_x_c1_global_desc.GetLength(I0);
     const auto Y = wei_k_c0_y_x_c1_global_desc.GetLength(I2);
@@ -106,10 +106,12 @@ struct GemmArguments
     static constexpr auto gridwise_gemm_desc                       = GridwiseGemmDesc{};
     static constexpr auto a_e0_e1_k0_k1_e2_grid_desc               = AE0E1K0K1E2GridDesc{};
     static constexpr auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc = BE0E1NH0H1H2W0W1W2E2GridDesc{};
+    static constexpr auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc    = CK0K1NH0H1H2W0W1W2GridDesc{};
     static constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
         CBlockIdToKNHoWoBlockClusterAdaptor{};
 
     index_t grid_size;
+    index_t block_size;
     bool has_main_e0_block_loop;
 
     GemmArguments(
@@ -119,6 +121,7 @@ struct GemmArguments
         // const CK0K1NH0H1H2W0W1W2GridDesc c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc_,
         // const CBlockIdToKNHoWoBlockClusterAdaptor c_blockid_to_k_n_h_w_block_cluster_adaptor_,
         const index_t grid_size_,
+        const index_t block_size_,
         const bool has_main_e0_block_loop_)
     {
         // gridwise_gemm_desc = gridwise_gemm_desc_;
@@ -129,6 +132,7 @@ struct GemmArguments
         // c_blockid_to_k_n_h_w_block_cluster_adaptor = c_blockid_to_k_n_h_w_block_cluster_adaptor_;
 
         grid_size              = grid_size_;
+        block_size             = block_size_;
         has_main_e0_block_loop = has_main_e0_block_loop_;
     }
 };
@@ -149,22 +153,22 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
     printTuningParameters<GridGemmTuningParameters>();
     printGemmDesc(conv_desc);
 
-    constexpr index_t BlockSize = GridGemmTuningParameters::BlockSize;
+    constexpr auto BlockSize = Number<GridGemmTuningParameters::BlockSize>{};
 
-    constexpr index_t E1 = GridGemmTuningParameters::E1;
-    constexpr index_t E2 = GridGemmTuningParameters::E2;
-    constexpr index_t K2 = GridGemmTuningParameters::K2;
+    constexpr auto E1 = Number<GridGemmTuningParameters::E1>{};
+    constexpr auto E2 = Number<GridGemmTuningParameters::E2>{};
+    constexpr auto K2 = Number<GridGemmTuningParameters::K2>{};
 
-    constexpr index_t E0PerBlock = GridGemmTuningParameters::E0PerBlock;
-    constexpr index_t KPerBlock  = GridGemmTuningParameters::KPerBlock;
-    constexpr index_t HoPerBlock = GridGemmTuningParameters::HoPerBlock;
-    constexpr index_t WoPerBlock = GridGemmTuningParameters::WoPerBlock;
-    constexpr index_t E1PerBlock = GridGemmTuningParameters::E1PerBlock;
+    constexpr auto E0PerBlock = Number<GridGemmTuningParameters::E0PerBlock>{};
+    constexpr auto KPerBlock  = Number<GridGemmTuningParameters::KPerBlock>{};
+    constexpr auto HoPerBlock = Number<GridGemmTuningParameters::HoPerBlock>{};
+    constexpr auto WoPerBlock = Number<GridGemmTuningParameters::WoPerBlock>{};
+    constexpr auto E1PerBlock = Number<GridGemmTuningParameters::E1PerBlock>{};
 
-    constexpr index_t KPerThread  = GridGemmTuningParameters::KPerThread;
-    constexpr index_t HoPerThread = GridGemmTuningParameters::HoPerThread;
-    constexpr index_t WoPerThread = GridGemmTuningParameters::WoPerThread;
-    constexpr index_t EPerThread  = GridGemmTuningParameters::EPerThread;
+    constexpr auto KPerThread  = Number<GridGemmTuningParameters::KPerThread>{};
+    constexpr auto HoPerThread = Number<GridGemmTuningParameters::HoPerThread>{};
+    constexpr auto WoPerThread = Number<GridGemmTuningParameters::WoPerThread>{};
+    constexpr auto EPerThread  = Number<GridGemmTuningParameters::EPerThread>{};
 
     using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 =
         decltype(GridGemmTuningParameters::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2);
@@ -182,64 +186,61 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
 
     constexpr auto in_n_c0_hi_wi_c1_global_desc = conv_desc.in_n_c0_hi_wi_c1_desc;
 
-    constexpr index_t N  = in_n_c0_hi_wi_c1_global_desc.GetLength(I0);
-    constexpr index_t C0 = in_n_c0_hi_wi_c1_global_desc.GetLength(I1);
-    constexpr index_t Hi = in_n_c0_hi_wi_c1_global_desc.GetLength(I2);
-    constexpr index_t Wi = in_n_c0_hi_wi_c1_global_desc.GetLength(I3);
-    constexpr index_t C1 = in_n_c0_hi_wi_c1_global_desc.GetLength(I4);
+    constexpr auto N  = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I0)>{};
+    constexpr auto C0 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I1)>{};
+    constexpr auto Hi = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I2)>{};
+    constexpr auto Wi = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I3)>{};
+    constexpr auto C1 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I4)>{};
 
     constexpr auto out_n_k0_ho_wo_k1_global_desc = conv_desc.out_n_k0_ho_wo_k1_desc;
 
-    constexpr index_t K0 = out_n_k0_ho_wo_k1_global_desc.GetLength(I1);
-    constexpr index_t Ho = out_n_k0_ho_wo_k1_global_desc.GetLength(I2);
-    constexpr index_t Wo = out_n_k0_ho_wo_k1_global_desc.GetLength(I3);
-    constexpr index_t K1 = out_n_k0_ho_wo_k1_global_desc.GetLength(I4);
+    constexpr auto K0 = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I1)>{};
+    constexpr auto Ho = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I2)>{};
+    constexpr auto Wo = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I3)>{};
+    constexpr auto K1 = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I4)>{};
 
     constexpr auto wei_k_c0_y_x_c1_global_desc = conv_desc.wei_k_c0_y_x_c1_desc;
 
-    constexpr index_t K = wei_k_c0_y_x_c1_global_desc.GetLength(I0);
-    constexpr index_t Y = wei_k_c0_y_x_c1_global_desc.GetLength(I2);
-    constexpr index_t X = wei_k_c0_y_x_c1_global_desc.GetLength(I3);
+    constexpr auto K = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I0)>{};
+    constexpr auto Y = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I2)>{};
+    constexpr auto X = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I3)>{};
 
-    constexpr index_t ConvStrideH = conv_desc.conv_strides[I0];
-    constexpr index_t ConvStrideW = conv_desc.conv_strides[I1];
+    constexpr auto ConvStrideH = Number<conv_desc.conv_strides[I0]>{};
+    constexpr auto ConvStrideW = Number<conv_desc.conv_strides[I1]>{};
 
-    constexpr index_t ConvDilationH = conv_desc.conv_dilations[I0];
-    constexpr index_t ConvDilationW = conv_desc.conv_dilations[I1];
+    constexpr auto ConvDilationH = Number<conv_desc.conv_dilations[I0]>{};
+    constexpr auto ConvDilationW = Number<conv_desc.conv_dilations[I1]>{};
 
-#if CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
-    constexpr index_t Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
-    constexpr index_t Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
-#else
-    constexpr index_t Hop = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
-    constexpr index_t Wop = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
-#endif
+    constexpr auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
+    constexpr auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
 
-    constexpr index_t InLeftPadH = conv_desc.in_left_pads[I0];
-    constexpr index_t InLeftPadW = conv_desc.in_left_pads[I1];
+    constexpr auto InLeftPadH = Number<conv_desc.in_left_pads[I0]>{};
+    constexpr auto InLeftPadW = Number<conv_desc.in_left_pads[I1]>{};
 
-    constexpr index_t OutRightPadH = Hop - Ho;
-    constexpr index_t OutRightPadW = Wop - Wo;
+    constexpr auto OutRightPadH = Hop - Ho;
+    constexpr auto OutRightPadW = Wop - Wo;
 
-    constexpr index_t InRightPadH = conv_desc.in_right_pads[I0] + OutRightPadH * ConvStrideH;
-    constexpr index_t InRightPadW = conv_desc.in_right_pads[I1] + OutRightPadW * ConvStrideW;
+    constexpr auto InRightPadH = Number<conv_desc.in_right_pads[I0] + OutRightPadH * ConvStrideH>{};
+    constexpr auto InRightPadW = Number<conv_desc.in_right_pads[I1] + OutRightPadW * ConvStrideW>{};
 
     if((C0 * Y * X) % (E1 * E0PerBlock) != 0)
     {
         throw std::runtime_error("wrong! GEMM size no divisible");
     }
 
-    constexpr index_t E  = C0 * Y * X;
-    constexpr index_t E0 = E / E1;
+    constexpr auto E  = Number<C0 * Y * X>{};
+    constexpr auto E0 = Number<E / E1>{};
 
     // weight tensor
     constexpr auto a_e_k_e2_grid_desc =
         transform_tensor_descriptor(make_naive_tensor_descriptor_packed(make_tuple(K, E, E2)),
                                     make_tuple(make_pass_through_transform(K),
-                                               make_pass_through_transform(C0 * Y * X),
+                                               make_pass_through_transform(E),
                                                make_pass_through_transform(E2)),
                                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                                     make_tuple(Sequence<1>{}, Sequence<0>{}, Sequence<2>{}));
+
+    static_assert(a_e_k_e2_grid_desc.IsKnownAtCompileTime(), "");
 
     constexpr auto a_e0_e1_k_e2_grid_desc =
         transform_tensor_descriptor(a_e_k_e2_grid_desc,
@@ -248,6 +249,8 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
                                                make_pass_through_transform(E2)),
                                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                                     make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
+
+    static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
 
     // input tensor
     constexpr auto in_n_c0_hip_wip_e2_global_desc = transform_tensor_descriptor(
@@ -260,6 +263,8 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
+    static_assert(in_n_c0_hip_wip_e2_global_desc.IsKnownAtCompileTime(), "");
+
     constexpr auto in_n_c0_y_ho_x_wo_e2_global_desc = transform_tensor_descriptor(
         in_n_c0_hip_wip_e2_global_desc,
         make_tuple(make_pass_through_transform(N),
@@ -271,6 +276,8 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
         make_tuple(
             Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}, Sequence<6>{}));
 
+    static_assert(in_n_c0_y_ho_x_wo_e2_global_desc.IsKnownAtCompileTime(), "");
+
     constexpr auto in_e_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
         in_n_c0_y_ho_x_wo_e2_global_desc,
         make_tuple(make_merge_transform(make_tuple(C0, Y, X)),
@@ -281,6 +288,8 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
         make_tuple(Sequence<1, 2, 4>{}, Sequence<0>{}, Sequence<3>{}, Sequence<5>{}, Sequence<6>{}),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
 
+    static_assert(in_e_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
+
     constexpr auto b_e0_e1_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
         in_e_n_ho_wo_e2_grid_desc,
         make_tuple(make_unmerge_transform(make_tuple(E0, E1)),
@@ -290,6 +299,8 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
                    make_pass_through_transform(E2)),
         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
         make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}));
+
+    static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
 
     // output tensor
     constexpr auto c_k_n_hop_wop_grid_desc = transform_tensor_descriptor(
@@ -355,12 +366,17 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
         1,
         CThreadTransferDstScalarPerVector_K>;
 
+    static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+
     const auto a_e0_e1_k0_k1_e2_grid_desc =
         GridwiseGemm::MakeAE0E1K0K1E2GridDescriptor(a_e0_e1_k_e2_grid_desc);
     const auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
         GridwiseGemm::MakeBE0E1NH0H1H2W0W1W2E2GridDescriptor(b_e0_e1_n_ho_wo_e2_grid_desc);
     const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
         GridwiseGemm::MakeCK0K1NH0H1H2W0W1W2GridDescriptor(c_k_n_hop_wop_grid_desc);
+
+    static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+
     const auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
         GridwiseGemm::MakeCBlockIdToKNHoWoBlockClusterAdaptor(c_k_n_hop_wop_grid_desc);
 
@@ -370,19 +386,6 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
 
     std::cerr << "grid_size = " << grid_size
               << " has_main_e0_block_loop = " << has_main_e0_block_loop << std::endl;
-
-#if 0
-    return GemmArguments(GridwiseGemm{},
-                         a_e0_e1_k0_k1_e2_grid_desc,
-                         b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                         c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                         c_blockid_to_k_n_h_w_block_cluster_adaptor,
-                         grid_size,
-                         has_main_e0_block_loop);
-#else
-
-    static_assert(a_e_k_e2_grid_desc.IsKnownAtCompileTime(), "");
-    static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
 
     static_assert(a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
     static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
@@ -400,8 +403,8 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
                          AGridDesc_E0_E1_K0_K1_E2,
                          BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
                          CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
-                         CBlockIdToBlockClusterAdaptor_K_N_H_W>(grid_size, has_main_e0_block_loop);
-#endif
+                         CBlockIdToBlockClusterAdaptor_K_N_H_W>(
+        grid_size, BlockSize, has_main_e0_block_loop);
 }
 
 template <typename FloatAB,
@@ -413,6 +416,300 @@ template <typename FloatAB,
           ck::ActivTypeEnum_t activ_type_>
 struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1
 {
+    template <typename ConvDesc>
+    __host__ float Run_test(ConvDesc conv_desc,
+                            const FloatAB* __restrict__ p_a_grid,
+                            const FloatAB* __restrict__ p_b_grid,
+                            const FloatC* __restrict__ p_bias_grid,
+                            FloatC* __restrict__ p_c_grid,
+                            const int nrepeat) const
+    {
+        constexpr auto I0 = Number<0>{};
+        constexpr auto I1 = Number<1>{};
+        constexpr auto I2 = Number<2>{};
+        constexpr auto I3 = Number<3>{};
+        constexpr auto I4 = Number<4>{};
+
+        using GridGemmTuningParameters = GridGemmTuningParameters1;
+
+        printTuningParameters<GridGemmTuningParameters>();
+        printGemmDesc(conv_desc);
+
+        constexpr auto BlockSize = Number<GridGemmTuningParameters::BlockSize>{};
+
+        constexpr auto E1 = Number<GridGemmTuningParameters::E1>{};
+        constexpr auto E2 = Number<GridGemmTuningParameters::E2>{};
+        constexpr auto K2 = Number<GridGemmTuningParameters::K2>{};
+
+        constexpr auto E0PerBlock = Number<GridGemmTuningParameters::E0PerBlock>{};
+        constexpr auto KPerBlock  = Number<GridGemmTuningParameters::KPerBlock>{};
+        constexpr auto HoPerBlock = Number<GridGemmTuningParameters::HoPerBlock>{};
+        constexpr auto WoPerBlock = Number<GridGemmTuningParameters::WoPerBlock>{};
+        constexpr auto E1PerBlock = Number<GridGemmTuningParameters::E1PerBlock>{};
+
+        constexpr auto KPerThread  = Number<GridGemmTuningParameters::KPerThread>{};
+        constexpr auto HoPerThread = Number<GridGemmTuningParameters::HoPerThread>{};
+        constexpr auto WoPerThread = Number<GridGemmTuningParameters::WoPerThread>{};
+        constexpr auto EPerThread  = Number<GridGemmTuningParameters::EPerThread>{};
+
+        using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 =
+            decltype(GridGemmTuningParameters::ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2);
+        using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
+            decltype(GridGemmTuningParameters::ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2);
+
+        constexpr auto ABlockTransferSrcScalarPerVector_E2 =
+            GridGemmTuningParameters::ABlockTransferSrcScalarPerVector_E2;
+        constexpr auto ABlockTransferDstScalarPerVector_E2 =
+            GridGemmTuningParameters::ABlockTransferDstScalarPerVector_E2;
+        constexpr auto BThreadTransferSrcScalarPerVector_E2 =
+            GridGemmTuningParameters::BThreadTransferSrcScalarPerVector_E2;
+        constexpr auto CThreadTransferDstScalarPerVector_K =
+            GridGemmTuningParameters::CThreadTransferDstScalarPerVector_K;
+
+        constexpr auto in_n_c0_hi_wi_c1_global_desc = conv_desc.in_n_c0_hi_wi_c1_desc;
+
+        constexpr auto N  = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I0)>{};
+        constexpr auto C0 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I1)>{};
+        constexpr auto Hi = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I2)>{};
+        constexpr auto Wi = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I3)>{};
+        constexpr auto C1 = Number<in_n_c0_hi_wi_c1_global_desc.GetLength(I4)>{};
+
+        constexpr auto out_n_k0_ho_wo_k1_global_desc = conv_desc.out_n_k0_ho_wo_k1_desc;
+
+        constexpr auto K0 = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I1)>{};
+        constexpr auto Ho = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I2)>{};
+        constexpr auto Wo = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I3)>{};
+        constexpr auto K1 = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I4)>{};
+
+        constexpr auto wei_k_c0_y_x_c1_global_desc = conv_desc.wei_k_c0_y_x_c1_desc;
+
+        constexpr auto K = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I0)>{};
+        constexpr auto Y = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I2)>{};
+        constexpr auto X = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I3)>{};
+
+        constexpr auto ConvStrideH = Number<conv_desc.conv_strides[I0]>{};
+        constexpr auto ConvStrideW = Number<conv_desc.conv_strides[I1]>{};
+
+        constexpr auto ConvDilationH = Number<conv_desc.conv_dilations[I0]>{};
+        constexpr auto ConvDilationW = Number<conv_desc.conv_dilations[I1]>{};
+
+        constexpr auto Hop = Number<(Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock>{};
+        constexpr auto Wop = Number<(Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock>{};
+
+        constexpr auto InLeftPadH = Number<conv_desc.in_left_pads[I0]>{};
+        constexpr auto InLeftPadW = Number<conv_desc.in_left_pads[I1]>{};
+
+        constexpr auto OutRightPadH = Hop - Ho;
+        constexpr auto OutRightPadW = Wop - Wo;
+
+        constexpr auto InRightPadH =
+            Number<conv_desc.in_right_pads[I0] + OutRightPadH * ConvStrideH>{};
+        constexpr auto InRightPadW =
+            Number<conv_desc.in_right_pads[I1] + OutRightPadW * ConvStrideW>{};
+
+        if((C0 * Y * X) % (E1 * E0PerBlock) != 0)
+        {
+            throw std::runtime_error("wrong! GEMM size no divisible");
+        }
+
+        constexpr auto E  = Number<C0 * Y * X>{};
+        constexpr auto E0 = Number<E / E1>{};
+
+        // weight tensor
+        constexpr auto a_e_k_e2_grid_desc =
+            transform_tensor_descriptor(make_naive_tensor_descriptor_packed(make_tuple(K, E, E2)),
+                                        make_tuple(make_pass_through_transform(K),
+                                                   make_pass_through_transform(E),
+                                                   make_pass_through_transform(E2)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<1>{}, Sequence<0>{}, Sequence<2>{}));
+
+        static_assert(a_e_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+
+        constexpr auto a_e0_e1_k_e2_grid_desc =
+            transform_tensor_descriptor(a_e_k_e2_grid_desc,
+                                        make_tuple(make_unmerge_transform(make_tuple(E0, E1)),
+                                                   make_pass_through_transform(K),
+                                                   make_pass_through_transform(E2)),
+                                        make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                                        make_tuple(Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}));
+
+        static_assert(a_e0_e1_k_e2_grid_desc.IsKnownAtCompileTime(), "");
+
+        // input tensor
+        constexpr auto in_n_c0_hip_wip_e2_global_desc = transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(N, C0, Hi, Wi, E2)),
+            make_tuple(make_pass_through_transform(N),
+                       make_pass_through_transform(C0),
+                       make_pad_transform(Hi, InLeftPadH, InRightPadH),
+                       make_pad_transform(Wi, InLeftPadW, InRightPadW),
+                       make_pass_through_transform(E2)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+        static_assert(in_n_c0_hip_wip_e2_global_desc.IsKnownAtCompileTime(), "");
+
+        constexpr auto in_n_c0_y_ho_x_wo_e2_global_desc = transform_tensor_descriptor(
+            in_n_c0_hip_wip_e2_global_desc,
+            make_tuple(
+                make_pass_through_transform(N),
+                make_pass_through_transform(C0),
+                make_embed_transform(make_tuple(Y, Hop), make_tuple(ConvDilationH, ConvStrideH)),
+                make_embed_transform(make_tuple(X, Wop), make_tuple(ConvDilationW, ConvStrideW)),
+                make_pass_through_transform(E2)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(
+                Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4, 5>{}, Sequence<6>{}));
+
+        static_assert(in_n_c0_y_ho_x_wo_e2_global_desc.IsKnownAtCompileTime(), "");
+
+        constexpr auto in_e_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
+            in_n_c0_y_ho_x_wo_e2_global_desc,
+            make_tuple(make_merge_transform(make_tuple(C0, Y, X)),
+                       make_pass_through_transform(N),
+                       make_pass_through_transform(Hop),
+                       make_pass_through_transform(Wop),
+                       make_pass_through_transform(E2)),
+            make_tuple(
+                Sequence<1, 2, 4>{}, Sequence<0>{}, Sequence<3>{}, Sequence<5>{}, Sequence<6>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}));
+
+        static_assert(in_e_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
+
+        constexpr auto b_e0_e1_n_ho_wo_e2_grid_desc = transform_tensor_descriptor(
+            in_e_n_ho_wo_e2_grid_desc,
+            make_tuple(make_unmerge_transform(make_tuple(E0, E1)),
+                       make_pass_through_transform(N),
+                       make_pass_through_transform(Hop),
+                       make_pass_through_transform(Wop),
+                       make_pass_through_transform(E2)),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}),
+            make_tuple(
+                Sequence<0, 1>{}, Sequence<2>{}, Sequence<3>{}, Sequence<4>{}, Sequence<5>{}));
+
+        static_assert(b_e0_e1_n_ho_wo_e2_grid_desc.IsKnownAtCompileTime(), "");
+
+        // output tensor
+        constexpr auto c_k_n_hop_wop_grid_desc = transform_tensor_descriptor(
+            make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1)),
+            make_tuple(make_merge_transform(make_tuple(K0, K1)),
+                       make_pass_through_transform(N),
+                       make_pad_transform(Ho, I0, OutRightPadH),
+                       make_pad_transform(Wo, I0, OutRightPadW)),
+            make_tuple(Sequence<1, 4>{}, Sequence<0>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}));
+
+        std::cerr << "Hop = " << Hop << " Wop = " << Wop << std::endl;
+
+        if(!((K % KPerBlock) == 0 && (Hop % HoPerBlock) == 0 && (Wop % WoPerBlock) == 0 &&
+             (E1 % E1PerBlock) == 0))
+        {
+            throw std::runtime_error("wrong! GEMM size no divisible");
+        }
+
+        std::cerr << "a_size = " << a_e0_e1_k_e2_grid_desc.GetElementSpaceSize() * sizeof(FloatAB)
+                  << ", b_size = "
+                  << b_e0_e1_n_ho_wo_e2_grid_desc.GetElementSpaceSize() * sizeof(FloatAB)
+                  << ", c = " << c_k_n_hop_wop_grid_desc.GetElementSpaceSize() * sizeof(FloatC)
+                  << std::endl;
+
+        // GEMM
+        using GridwiseGemm = GridwiseGemmDlops_km_kn_mn_v3<
+            BlockSize,
+            FloatAB,
+            FloatAcc,
+            FloatC,
+            InMemoryDataOperationEnum_t::Set,
+            decltype(a_e0_e1_k_e2_grid_desc),
+            decltype(b_e0_e1_n_ho_wo_e2_grid_desc),
+            decltype(c_k_n_hop_wop_grid_desc),
+            decltype(c_k_n_hop_wop_grid_desc),
+            E1,
+            E2,
+            K2,
+            KPerBlock,
+            HoPerBlock,
+            WoPerBlock,
+            E0PerBlock,
+            E1PerBlock,
+            KPerThread,
+            HoPerThread,
+            WoPerThread,
+            EPerThread,
+            ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2,
+            ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2,
+            Sequence<2, 3, 0, 1, 4>,
+            Sequence<0, 1, 2, 3, 4>,
+            4,
+            ABlockTransferSrcScalarPerVector_E2,
+            ABlockTransferDstScalarPerVector_E2,
+            false, // don't move back src coordinate after threadwise copy
+            Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8, 9>, // E0, E1, N, H0, H1, H2, W0, W1, W2, E2
+            9,
+            BThreadTransferSrcScalarPerVector_E2,
+            false, // don't move back src coordinate after threadwise copy, which will be fused with
+            // MoveSrcSliceWindow() to save addr computation
+            Sequence<0, 1, 2, 3, 4, 5, 6, 7, 8>, // K0, K1, N, H0, H1, H2, W0, W1, W2
+            1,
+            CThreadTransferDstScalarPerVector_K>;
+
+        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+
+        const auto a_e0_e1_k0_k1_e2_grid_desc =
+            GridwiseGemm::MakeAE0E1K0K1E2GridDescriptor(a_e0_e1_k_e2_grid_desc);
+        const auto b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc =
+            GridwiseGemm::MakeBE0E1NH0H1H2W0W1W2E2GridDescriptor(b_e0_e1_n_ho_wo_e2_grid_desc);
+        const auto c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc =
+            GridwiseGemm::MakeCK0K1NH0H1H2W0W1W2GridDescriptor(c_k_n_hop_wop_grid_desc);
+
+        static_assert(c_k_n_hop_wop_grid_desc.IsKnownAtCompileTime(), "");
+
+        const auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
+            GridwiseGemm::MakeCBlockIdToKNHoWoBlockClusterAdaptor(c_k_n_hop_wop_grid_desc);
+
+        const auto grid_size = (K / KPerBlock) * (Hop / HoPerBlock) * (Wop / WoPerBlock) * N;
+
+        const bool has_main_e0_block_loop = E0 > 1;
+
+        std::cerr << "grid_size = " << grid_size
+                  << " has_main_e0_block_loop = " << has_main_e0_block_loop << std::endl;
+
+        static_assert(a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
+        static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
+
+        using AGridDesc_E0_E1_K0_K1_E2 = decltype(a_e0_e1_k0_k1_e2_grid_desc);
+        using BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 =
+            decltype(b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
+        using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 = decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
+        using CBlockIdToBlockClusterAdaptor_K_N_H_W =
+            decltype(c_blockid_to_k_n_h_w_block_cluster_adaptor);
+
+        const auto kernel = kernel_gemm_bias_activ_dlops_v3<
+            GridwiseGemm,
+            FloatAB,
+            FloatC,
+            remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
+            remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
+            remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
+            remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
+            true,
+            activ_type_>;
+
+        float ave_time = launch_and_time_kernel(kernel,
+                                                nrepeat,
+                                                dim3(grid_size),
+                                                dim3(BlockSize),
+                                                0,
+                                                p_a_grid,
+                                                p_b_grid,
+                                                p_bias_grid,
+                                                p_c_grid);
+
+        return ave_time;
+    }
+
     template <typename Conv1Desc, typename Conv2Desc>
     __host__ float Run(Conv1Desc conv1_desc,
                        Conv2Desc conv2_desc,
@@ -424,7 +721,6 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
                        FloatC* __restrict__ p_c_grid,
                        const int nrepeat) const
     {
-
         const auto GemmArg1 =
             MakeGridwiseGemm<FloatAB, FloatAcc, FloatC, GridGemmTuningParameters1>(conv1_desc);
 
@@ -460,13 +756,13 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
         }
 #elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
         {
-            // static_assert(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
-            // static_assert(GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(),
-            //"");
-            // static_assert(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(),
-            //"");
-            // static_assert(
-            // GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
+            static_assert(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
+            static_assert(GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(),
+                          "");
+            static_assert(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(),
+                          "");
+            static_assert(
+                GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
             using GridwiseGemm             = decltype(GemmArg1.gridwise_gemm_desc);
             using AGridDesc_E0_E1_K0_K1_E2 = decltype(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc);
@@ -485,18 +781,18 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
                 remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
                 remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
                 remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                GemmArg1.has_main_e0_block_loop,
+                true,
                 activ_type_>;
 
-            // ave_time = launch_and_time_kernel(kernel,
-            // nrepeat,
-            // dim3(grid_size),
-            // dim3(BlockSize),
-            // 0,
-            // p_a_grid,
-            // p_b_grid,
-            // p_bias_grid,
-            // p_c_grid);
+            ave_time = launch_and_time_kernel(kernel,
+                                              nrepeat,
+                                              dim3(GemmArg1.grid_size),
+                                              dim3(GemmArg1.block_size),
+                                              0,
+                                              p_a1_grid,
+                                              p_b1_grid,
+                                              p_bias_grid,
+                                              p_c_grid);
         }
 #endif
         return ave_time;

@@ -218,20 +218,20 @@ int main(int argc, char* argv[])
     constexpr auto N = Number<1>{};
 
     // input1
-    constexpr auto CONV1_Hi = Number<270>{};
-    constexpr auto CONV1_Wi = Number<480>{};
+    constexpr auto CONV1_Hi = Number<16>{};
+    constexpr auto CONV1_Wi = Number<64>{};
     constexpr auto CONV1_C0 = Number<10>{};
     constexpr auto CONV1_C1 = Number<8>{};
 
     // input2
-    constexpr auto CONV2_Hi = Number<270>{};
-    constexpr auto CONV2_Wi = Number<480>{};
+    constexpr auto CONV2_Hi = Number<CONV1_Hi>{};
+    constexpr auto CONV2_Wi = Number<CONV1_Wi>{};
     constexpr auto CONV2_C0 = Number<8>{};
-    constexpr auto CONV2_C1 = Number<8>{};
+    constexpr auto CONV2_C1 = Number<CONV1_C1>{};
 
     constexpr auto Y  = Number<1>{};
     constexpr auto X  = Number<1>{};
-    constexpr auto K0 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
     constexpr auto K  = Number<K0 * K1>{};
 
@@ -251,8 +251,8 @@ int main(int argc, char* argv[])
     constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
     constexpr auto XEff = (X - I1) * conv_dilation_w + I1;
 
-    constexpr auto Ho = (CONV2_Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + I1;
-    constexpr auto Wo = (CONV2_Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
+    constexpr auto Ho = (CONV1_Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + I1;
+    constexpr auto Wo = (CONV1_Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 #endif
 
 #if 0
@@ -443,10 +443,9 @@ int main(int argc, char* argv[])
             // LogRangeAsType<float>(std::cout << "in2 : ", in2.mData, ",") << std::endl;
             // LogRangeAsType<float>(std::cout << "wei1: ", wei1.mData, ",") << std::endl;
             // LogRangeAsType<float>(std::cout << "wei2: ", wei2.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "bias: ", bias.mData, ",") << std::endl;
-            LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
-            // LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") <<
-            // std::endl;
+            // LogRangeAsType<float>(std::cout << "bias: ", bias.mData, ",") << std::endl;
+            // LogRangeAsType<float>(std::cout << "out_host  : ", out_host.mData, ",") << std::endl;
+            LogRangeAsType<float>(std::cout << "out_device: ", out_device.mData, ",") << std::endl;
         }
     }
 }

@@ -254,6 +254,10 @@ void device_resize_concat_conv_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hw
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
+    static_assert(in1_n_c0_hi_wi_c1_desc.IsKnownAtCompileTime(), "");
+    static_assert(wei1_k_c0_y_x_c1_desc.IsKnownAtCompileTime(), "");
+    static_assert(out_n_k0_ho_wo_k1_desc.IsKnownAtCompileTime(), "");
+
     ConvDesc conv1_desc(in1_n_c0_hi_wi_c1_desc,
                         wei1_k_c0_y_x_c1_desc,
                         out_n_k0_ho_wo_k1_desc,
@@ -266,6 +270,9 @@ void device_resize_concat_conv_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hw
         make_naive_tensor_descriptor_packed(make_tuple(N, CONV2_C0, Hi, Wi, C1));
     const auto wei2_k_c0_y_x_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(K, CONV2_C0, Y, X, C1));
+
+    static_assert(in2_n_c0_hi_wi_c1_desc.IsKnownAtCompileTime(), "");
+    static_assert(wei2_k_c0_y_x_c1_desc.IsKnownAtCompileTime(), "");
 
     ConvDesc conv2_desc(in2_n_c0_hi_wi_c1_desc,
                         wei2_k_c0_y_x_c1_desc,
@@ -287,16 +294,25 @@ void device_resize_concat_conv_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hw
 
     for(int i = 0; i < 5; i++)
     {
-        const auto ave_time =
-            conv_driver.Run(conv1_desc,
-                            conv2_desc,
-                            static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
-                            nrepeat);
+
+        // const auto ave_time =
+        // conv_driver.Run(conv1_desc,
+        // conv2_desc,
+        // static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+        // static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+        // static_cast<TInWei*>(wei2_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+        // static_cast<TInWei*>(in2_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+        // static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
+        // static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+        // nrepeat);
+
+        const auto ave_time = conv_driver.Run_test(
+            conv1_desc,
+            static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+            static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+            static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
+            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+            nrepeat);
 
         {
             // float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C0 * C1 * Y * X) /
