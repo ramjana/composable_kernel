@@ -542,9 +542,6 @@ struct ThreadwiseTensorSliceTransfer_v2
             src_vector.template AsType<src_vector_t>()(Number<0>{}) =
                 src_buf.template Get<src_vector_t>(src_coord_.GetOffset(), is_src_valid);
 
-            const index_t offset = src_coord_.GetOffset();
-            printf("ThreadwiseTensorSliceTransfer_v2: %d\n", offset);
-
             // copy data from src_vector into dst_buf
             static_for<0, SrcScalarPerVector, 1>{}([&](auto i) {
                 constexpr index_t dst_offset =
@@ -552,7 +549,6 @@ struct ThreadwiseTensorSliceTransfer_v2
                                              i * src_scalar_step_in_vector);
 
                 dst_buf(Number<dst_offset>{}) = src_vector.template AsType<SrcData>()[i];
-                // dst_buf(Number<dst_offset>{}) = 1;
             });
 
             constexpr auto move_on_dim = [&]() constexpr

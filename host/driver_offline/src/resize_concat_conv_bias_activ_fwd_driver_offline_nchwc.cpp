@@ -111,12 +111,12 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
                                out.mDesc.GetLengths()[3],
                                out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
 
-    make_ParallelTensorFunctor(f_nchw_2,
-                               out.mDesc.GetLengths()[0],
-                               out.mDesc.GetLengths()[1],
-                               out.mDesc.GetLengths()[2],
-                               out.mDesc.GetLengths()[3],
-                               out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+    // make_ParallelTensorFunctor(f_nchw_2,
+    // out.mDesc.GetLengths()[0],
+    // out.mDesc.GetLengths()[1],
+    // out.mDesc.GetLengths()[2],
+    // out.mDesc.GetLengths()[3],
+    // out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
 }
 
 int main(int argc, char* argv[])
@@ -314,8 +314,8 @@ int main(int argc, char* argv[])
     Tensor<out_data_t> out_device(out_lengths_host);
 
     ostream_HostTensorDescriptor(in1.mDesc, std::cout << "in1: ");
-    ostream_HostTensorDescriptor(in2.mDesc, std::cout << "in2: ");
     ostream_HostTensorDescriptor(wei1.mDesc, std::cout << "wei1: ");
+    ostream_HostTensorDescriptor(in2.mDesc, std::cout << "in2: ");
     ostream_HostTensorDescriptor(wei2.mDesc, std::cout << "wei2: ");
     ostream_HostTensorDescriptor(bias.mDesc, std::cout << "bias: ");
     ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
@@ -373,8 +373,8 @@ int main(int argc, char* argv[])
 
     auto f_make_for_device_nchwc = [&]() {
         const auto in1_lengths_dev    = make_tuple(N, CONV1_C0, CONV1_Hi, CONV1_Wi, CONV1_C1);
-        const auto in2_lengths_dev    = make_tuple(N, CONV2_C0, CONV2_Hi, CONV2_Wi, CONV2_C1);
         const auto wei1_lengths_dev   = make_tuple(K, CONV1_C0, Y, X, CONV1_C1);
+        const auto in2_lengths_dev    = make_tuple(N, CONV2_C0, CONV2_Hi, CONV2_Wi, CONV2_C1);
         const auto wei2_lengths_dev   = make_tuple(K, CONV2_C0, Y, X, CONV2_C1);
         const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
         const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
@@ -383,9 +383,9 @@ int main(int argc, char* argv[])
         const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
 
         return make_tuple(in1_lengths_dev,
-                          in2_lengths_dev,
                           wei1_lengths_dev,
-                          wei2_lengths_dev,
+                          // in2_lengths_dev,
+                          // wei2_lengths_dev,
                           out_lengths_dev,
                           conv_strides_dev,
                           conv_dilations_dev,
@@ -398,7 +398,7 @@ int main(int argc, char* argv[])
     {
         const auto tmp = f_make_for_device_nchwc();
 
-        device_resize_concat_conv_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
+        device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
             in_data_t,
             acc_data_t,
             out_data_t,
@@ -409,12 +409,12 @@ int main(int argc, char* argv[])
                         tmp[I4],
                         tmp[I5],
                         tmp[I6],
-                        tmp[I7],
-                        tmp[I8],
+                        // tmp[I7],
+                        // tmp[I8],
                         in1,
-                        in2,
                         wei1,
-                        wei2,
+                        // in2,
+                        // wei2,
                         bias,
                         out_device,
                         nrepeat);
