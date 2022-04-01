@@ -479,33 +479,32 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
             static_assert(
                 GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
-            using GridwiseGemm             = decltype(GemmArg1.gridwise_gemm_desc);
-            using AGridDesc_E0_E1_K0_K1_E2 = decltype(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc);
-            using BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 =
-                decltype(GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
-            using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 =
-                decltype(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-            using CBlockIdToBlockClusterAdaptor_K_N_H_W =
-                decltype(GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor);
+            // using GridwiseGemm             = decltype(GemmArg1.gridwise_gemm_desc);
+            // using AGridDesc_E0_E1_K0_K1_E2 = decltype(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc);
+            // using BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 =
+            // decltype(GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc);
+            // using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 =
+            // decltype(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
+            // using CBlockIdToBlockClusterAdaptor_K_N_H_W =
+            // decltype(GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor);
 
-            const auto kernel = kernel_gemm_bias_activ_dlops_v3<
-                GridwiseGemm,
-                FloatAB,
-                FloatC,
-                remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
-                remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
-                remove_reference_t<CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>,
-                remove_reference_t<CBlockIdToBlockClusterAdaptor_K_N_H_W>,
-                true,
-                activ_type_>;
+            const auto kernel = kernel_gemm_bias_activ_dlops_v4<decltype(GemmArg1),
+                                                                decltype(GemmArg2),
+                                                                FloatAB,
+                                                                FloatC,
+                                                                activ_type_>;
 
             ave_time = launch_and_time_kernel(kernel,
                                               nrepeat,
                                               dim3(GemmArg1.grid_size),
                                               dim3(GemmArg1.block_size),
                                               0,
+                                              GemmArg1,
+                                              GemmArg2,
                                               p_a1_grid,
                                               p_b1_grid,
+                                              p_a2_grid,
+                                              p_b2_grid,
                                               p_bias_grid,
                                               p_c_grid);
         }

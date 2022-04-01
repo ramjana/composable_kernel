@@ -99,8 +99,8 @@ template <typename TInWei,
           ck::ActivTypeEnum_t activ_type,
           typename In1Lengths,
           typename Wei1Lengths,
-          // typename In2Lengths,
-          // typename Wei2Lengths,
+          typename In2Lengths,
+          typename Wei2Lengths,
           typename OutLengths,
           typename ConvStrides,
           typename ConvDilations,
@@ -109,8 +109,8 @@ template <typename TInWei,
 void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1(
     const In1Lengths& in1_n_c0_hi_wi_c1_lengths,
     const Wei1Lengths& wei1_k_c0_y_x_c1_lengths,
-    // const In2Lengths& in2_n_c0_hi_wi_c1_lengths,
-    // const Wei2Lengths& wei2_k_c0_y_x_c1_lengths,
+    const In2Lengths& in2_n_c0_hi_wi_c1_lengths,
+    const Wei2Lengths& wei2_k_c0_y_x_c1_lengths,
     const OutLengths& out_n_k0_ho_wo_k1_lengths,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
@@ -118,8 +118,8 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const InRightPads& in_right_pads,
     const Tensor<TInWei>& in1_n_c0_hi_wi_c1,
     const Tensor<TInWei>& wei1_k_c0_y_x_c1,
-    // const Tensor<TInWei>& in2_n_c0_hi_wi_c1,
-    // const Tensor<TInWei>& wei2_k_c0_y_x_c1,
+    const Tensor<TInWei>& in2_n_c0_hi_wi_c1,
+    const Tensor<TInWei>& wei2_k_c0_y_x_c1,
     const Tensor<TOut>& bias_k0_k1,
     Tensor<TOut>& out_n_k0_ho_wo_k1,
     ck::index_t nrepeat)
@@ -172,12 +172,11 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
-#if 0
     const auto CONV2_C0 = in2_n_c0_hi_wi_c1_lengths[I1];
     DeviceMem in2_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
-            in2_n_c0_hi_wi_c1.mDesc.GetElementSpace());
+                                           in2_n_c0_hi_wi_c1.mDesc.GetElementSpace());
     DeviceMem wei2_k_c0_y_x_c1_device_buf(sizeof(TInWei) *
-            wei2_k_c0_y_x_c1.mDesc.GetElementSpace());
+                                          wei2_k_c0_y_x_c1.mDesc.GetElementSpace());
 
     in2_n_c0_hi_wi_c1_device_buf.ToDevice(in2_n_c0_hi_wi_c1.mData.data());
     wei2_k_c0_y_x_c1_device_buf.ToDevice(wei2_k_c0_y_x_c1.mData.data());
@@ -186,7 +185,6 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         make_naive_tensor_descriptor_packed(make_tuple(N, CONV2_C0, Hi, Wi, C1));
     const auto wei2_k_c0_y_x_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(K, CONV2_C0, Y, X, C1));
-#endif
 
     GridGemmTuningParameters<
         256,                             // BlockSize
@@ -211,13 +209,36 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         >
         conv1_tuning_parameters{};
 
+    GridGemmTuningParameters<
+        256,                             // BlockSize
+        CONV2_C0 * Y * X,                // E1
+        C1,                              // E2
+        4,                               // K2
+        1,                               // E0PerBlock
+        16,                              // KPerBlock
+        16,                              // HoPerBlock
+        64,                              // WoPerBlock
+        2,                               // E1PerBlock
+        16,                              // KPerThread
+        2,                               // HoPerThread
+        2,                               // WoPerThread
+        1,                               // EPerThread
+        Sequence<1, Y * X, 1, 1, C1>,    // ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2
+        Sequence<1, CONV2_C0, 1, 16, 1>, // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
+        C1,                              // ABlockTransferSrcScalarPerVector_E2
+        C1,                              // ABlockTransferDstScalarPerVector_E2
+        C1,                              // BThreadTransferSrcScalarPerVector_E2
+        C1                               // CThreadTransferDstScalarPerVector_K
+        >
+        conv2_tuning_parameters{};
+
     constexpr auto conv_driver =
         DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1<
             TInWei,
             TAcc,
             TOut,
             decltype(conv1_tuning_parameters),
-            decltype(conv1_tuning_parameters),
+            decltype(conv2_tuning_parameters),
             I1,
             activ_type>{};
 
@@ -229,25 +250,33 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                         in_left_pads,
                         in_right_pads);
 
+    ConvDesc conv2_desc(in2_n_c0_hi_wi_c1_desc,
+                        wei2_k_c0_y_x_c1_desc,
+                        out_n_k0_ho_wo_k1_desc,
+                        conv_strides,
+                        conv_dilations,
+                        in_left_pads,
+                        in_right_pads);
+
     for(int i = 0; i < 5; i++)
     {
         const auto ave_time =
             conv_driver.Run(conv1_desc,
-                            conv1_desc,
+                            conv2_desc,
                             static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TInWei*>(wei2_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TInWei*>(in2_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
         {
-            // float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * CONV1_C0 *
-            // CONV2_C0 * C1 * Y * X) /
-            //(std::size_t(1000) * 1000 * 1000) / ave_time;
+            float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * CONV1_C0 * CONV2_C0 *
+                                            C1 * Y * X) /
+                         (std::size_t(1000) * 1000 * 1000) / ave_time;
 
-            // std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
-            //<< std::endl;
+            std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
+                      << std::endl;
         }
     }
 
