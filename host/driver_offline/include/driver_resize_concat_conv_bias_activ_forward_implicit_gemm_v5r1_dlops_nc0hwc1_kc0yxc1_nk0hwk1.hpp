@@ -338,9 +338,8 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
     template <typename Conv1Desc, typename Conv2Desc>
     __host__ float Run(Conv1Desc conv1_desc,
                        Conv2Desc conv2_desc,
-                       const FloatAB* __restrict__ p_a1_grid,
+                       const FloatAB* __restrict__ p_a_grid,
                        const FloatAB* __restrict__ p_b1_grid,
-                       const FloatAB* __restrict__ p_a2_grid,
                        const FloatAB* __restrict__ p_b2_grid,
                        const FloatC* __restrict__ p_bias_grid,
                        FloatC* __restrict__ p_c_grid,
@@ -381,13 +380,13 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
         }
 #elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
         {
-            static_assert(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
-            static_assert(GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(),
-                          "");
-            static_assert(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(),
-                          "");
-            static_assert(
-                GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
+            // static_assert(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.IsKnownAtCompileTime(), "");
+            // static_assert(GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.IsKnownAtCompileTime(),
+            //"");
+            // static_assert(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(),
+            //"");
+            // static_assert(
+            // GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
             // using GridwiseGemm             = decltype(GemmArg1.gridwise_gemm_desc);
             // using AGridDesc_E0_E1_K0_K1_E2 = decltype(GemmArg1.a_e0_e1_k0_k1_e2_grid_desc);
@@ -411,9 +410,9 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
                                               0,
                                               GemmArg1,
                                               GemmArg2,
-                                              p_a1_grid,
+                                              p_a_grid,
+                                              p_a_grid + 5120,
                                               p_b1_grid,
-                                              p_a2_grid,
                                               p_b2_grid,
                                               p_bias_grid,
                                               p_c_grid);

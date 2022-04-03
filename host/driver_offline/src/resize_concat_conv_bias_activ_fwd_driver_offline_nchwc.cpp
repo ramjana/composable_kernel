@@ -32,8 +32,7 @@ template <typename TIn,
           typename InRightPads>
 void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
                                    const Tensor<TIn>& in2,
-                                   const Tensor<TWei>& wei1,
-                                   const Tensor<TWei>& wei2,
+                                   const Tensor<TWei>& wei,
                                    const Tensor<TOut>& bias,
                                    Tensor<TOut>& out,
                                    const ConvStrides& conv_strides,
@@ -47,25 +46,30 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
+    if((in1.mDesc.GetLengths()[1] + in2.mDesc.GetLengths()[1]) != wei.mDesc.GetLengths()[1])
+    {
+        throw std::runtime_error("wrong! c0 of in1 + in2 != c0 of wei");
+    }
+
     auto f_nchw_1 = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
         double v    = 0;
         const int k = k0 * out.mDesc.GetLengths()[4] + k1;
 
-        for(int c0 = 0; c0 < wei1.mDesc.GetLengths()[1]; ++c0)
+        for(int c0 = 0; c0 < in1.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int y = 0; y < wei1.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int x = 0; x < wei1.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in1.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in1.mDesc.GetLengths()[3])
                     {
-                        for(int c1 = 0; c1 < wei1.mDesc.GetLengths()[4]; ++c1)
+                        for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
                             v += static_cast<const double>(in1(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(wei1(k, c0, y, x, c1));
+                                 static_cast<const double>(wei(k, c0, y, x, c1));
                         }
                     }
                 }
@@ -78,21 +82,22 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
         double v    = 0;
         const int k = k0 * out.mDesc.GetLengths()[4] + k1;
 
-        for(int c0 = 0; c0 < wei2.mDesc.GetLengths()[1]; ++c0)
+        for(int c0 = 0; c0 < in2.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int y = 0; y < wei2.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int x = 0; x < wei2.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in2.mDesc.GetLengths()[2] && wi >= 0 &&
                        wi < in2.mDesc.GetLengths()[3])
                     {
-                        for(int c1 = 0; c1 < wei2.mDesc.GetLengths()[4]; ++c1)
+                        for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
                             v += static_cast<const double>(in2(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(wei2(k, c0, y, x, c1));
+                                 static_cast<const double>(
+                                     wei(k, c0 + in1.mDesc.GetLengths()[1], y, x, c1));
                         }
                     }
                 }
@@ -100,8 +105,9 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
         }
 
         out(n, k0, ho, wo, k1) += v;
-        // v += bias(k0, k1);
-        // out(n, k0, ho, wo, k1) = activ(v, activ_type);
+        //v += out(n, k0, ho, wo, k1);
+        //v += bias(k0, k1);
+        //out(n, k0, ho, wo, k1) = activ(v, activ_type);
     };
 
     make_ParallelTensorFunctor(f_nchw_1,
@@ -269,8 +275,8 @@ int main(int argc, char* argv[])
     using out_data_t = int8_t;
 #endif
 
-    std::vector<std::size_t> in1_lengths_host(5), in2_lengths_host(5), wei1_lengths_host(5),
-        wei2_lengths_host(5), out_lengths_host(5), bias_lengths_host(2);
+    std::vector<std::size_t> in1_lengths_host(5), in2_lengths_host(5), wei_lengths_host(5),
+        out_lengths_host(5), bias_lengths_host(2);
 
     in1_lengths_host[0] = static_cast<std::size_t>(N);
     in1_lengths_host[1] = static_cast<std::size_t>(CONV1_C0);
@@ -284,17 +290,11 @@ int main(int argc, char* argv[])
     in2_lengths_host[3] = static_cast<std::size_t>(CONV2_Wi);
     in2_lengths_host[4] = static_cast<std::size_t>(CONV2_C1);
 
-    wei1_lengths_host[0] = static_cast<std::size_t>(K);
-    wei1_lengths_host[1] = static_cast<std::size_t>(CONV1_C0);
-    wei1_lengths_host[2] = static_cast<std::size_t>(Y);
-    wei1_lengths_host[3] = static_cast<std::size_t>(X);
-    wei1_lengths_host[4] = static_cast<std::size_t>(CONV2_C1);
-
-    wei2_lengths_host[0] = static_cast<std::size_t>(K);
-    wei2_lengths_host[1] = static_cast<std::size_t>(CONV2_C0);
-    wei2_lengths_host[2] = static_cast<std::size_t>(Y);
-    wei2_lengths_host[3] = static_cast<std::size_t>(X);
-    wei2_lengths_host[4] = static_cast<std::size_t>(CONV2_C1);
+    wei_lengths_host[0] = static_cast<std::size_t>(K);
+    wei_lengths_host[1] = static_cast<std::size_t>(CONV1_C0 + CONV2_C0);
+    wei_lengths_host[2] = static_cast<std::size_t>(Y);
+    wei_lengths_host[3] = static_cast<std::size_t>(X);
+    wei_lengths_host[4] = static_cast<std::size_t>(CONV2_C1);
 
     out_lengths_host[0] = static_cast<std::size_t>(N);
     out_lengths_host[1] = static_cast<std::size_t>(K0);
@@ -307,16 +307,14 @@ int main(int argc, char* argv[])
 
     Tensor<in_data_t> in1(in1_lengths_host);
     Tensor<in_data_t> in2(in2_lengths_host);
-    Tensor<in_data_t> wei1(wei1_lengths_host);
-    Tensor<in_data_t> wei2(wei2_lengths_host);
+    Tensor<in_data_t> wei(wei_lengths_host);
     Tensor<out_data_t> bias(bias_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
 
     ostream_HostTensorDescriptor(in1.mDesc, std::cout << "in1: ");
-    ostream_HostTensorDescriptor(wei1.mDesc, std::cout << "wei1: ");
     ostream_HostTensorDescriptor(in2.mDesc, std::cout << "in2: ");
-    ostream_HostTensorDescriptor(wei2.mDesc, std::cout << "wei2: ");
+    ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
     ostream_HostTensorDescriptor(bias.mDesc, std::cout << "bias: ");
     ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
 
@@ -335,28 +333,27 @@ int main(int argc, char* argv[])
     case 1:
         in1.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
         in2.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
-        wei1.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
-        wei2.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
         break;
-    // case 2:
-    // in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
-    // wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
-    // break;
-    // case 3:
-    // in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
-    // wei.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
-    // break;
+    case 2:
+        in1.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        in2.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        break;
+    case 3:
+        in1.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        in2.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
+        break;
     case 4:
         in1.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
         in2.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
-        wei1.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
-        wei2.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
         break;
     case 5:
         in1.GenerateTensorValue(GeneratorTensor_3<in_data_t>{0.0, 1.0}, num_thread);
         in2.GenerateTensorValue(GeneratorTensor_3<in_data_t>{0.0, 1.0}, num_thread);
-        wei1.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.5, 0.5}, num_thread);
-        wei2.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.5, 0.5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.5, 0.5}, num_thread);
         break;
     default:
         in1.GenerateTensorValue(GeneratorTensor_2<in_data_t>{1, 5}, num_thread);
@@ -365,16 +362,14 @@ int main(int argc, char* argv[])
         auto gen_wei = [](auto... is) {
             return GeneratorTensor_2<in_data_t>{1, 5}(is...) * GeneratorTensor_Checkboard{}(is...);
         };
-        wei1.GenerateTensorValue(gen_wei, num_thread);
-        wei2.GenerateTensorValue(gen_wei, num_thread);
+        wei.GenerateTensorValue(gen_wei, num_thread);
     }
 
     bias.GenerateTensorValue(GeneratorTensor_1<out_data_t>{}, num_thread);
 
     const auto in1_lengths_dev    = make_tuple(N, CONV1_C0, CONV1_Hi, CONV1_Wi, CONV1_C1);
-    const auto wei1_lengths_dev   = make_tuple(K, CONV1_C0, Y, X, CONV1_C1);
     const auto in2_lengths_dev    = make_tuple(N, CONV2_C0, CONV2_Hi, CONV2_Wi, CONV2_C1);
-    const auto wei2_lengths_dev   = make_tuple(K, CONV2_C0, Y, X, CONV2_C1);
+    const auto wei_lengths_dev    = make_tuple(K, CONV1_C0 + CONV2_C0, Y, X, CONV2_C1);
     const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
     const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
     const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
@@ -389,18 +384,16 @@ int main(int argc, char* argv[])
             acc_data_t,
             out_data_t,
             activ_type>(in1_lengths_dev,
-                        wei1_lengths_dev,
                         in2_lengths_dev,
-                        wei2_lengths_dev,
+                        wei_lengths_dev,
                         out_lengths_dev,
                         conv_strides_dev,
                         conv_dilations_dev,
                         in_left_pads_dev,
                         in_right_pads_dev,
                         in1,
-                        wei1,
                         in2,
-                        wei2,
+                        wei,
                         bias,
                         out_device,
                         nrepeat);
@@ -411,8 +404,7 @@ int main(int argc, char* argv[])
     {
         host_direct_convolution_nchwc(in1,
                                       in2,
-                                      wei1,
-                                      wei2,
+                                      wei,
                                       bias,
                                       out_host,
                                       make_tuple(conv_stride_h, conv_stride_w),

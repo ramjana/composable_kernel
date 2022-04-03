@@ -172,9 +172,8 @@ template <typename TInWei,
           typename TOut,
           ck::ActivTypeEnum_t activ_type,
           typename In1Lengths,
-          typename Wei1Lengths,
           typename In2Lengths,
-          typename Wei2Lengths,
+          typename WeiLengths,
           typename OutLengths,
           typename ConvStrides,
           typename ConvDilations,
@@ -182,18 +181,16 @@ template <typename TInWei,
           typename InRightPads>
 void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1(
     const In1Lengths& in1_n_c0_hi_wi_c1_lengths,
-    const Wei1Lengths& wei1_k_c0_y_x_c1_lengths,
     const In2Lengths& in2_n_c0_hi_wi_c1_lengths,
-    const Wei2Lengths& wei2_k_c0_y_x_c1_lengths,
+    const WeiLengths& wei_k_c0_y_x_c1_lengths,
     const OutLengths& out_n_k0_ho_wo_k1_lengths,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
     const InRightPads& in_right_pads,
     const Tensor<TInWei>& in1_n_c0_hi_wi_c1,
-    const Tensor<TInWei>& wei1_k_c0_y_x_c1,
     const Tensor<TInWei>& in2_n_c0_hi_wi_c1,
-    const Tensor<TInWei>& wei2_k_c0_y_x_c1,
+    const Tensor<TInWei>& wei_k_c0_y_x_c1,
     const Tensor<TOut>& bias_k0_k1,
     Tensor<TOut>& out_n_k0_ho_wo_k1,
     ck::index_t nrepeat)
@@ -215,48 +212,46 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const auto K1 = out_n_k0_ho_wo_k1_lengths[I4];
 
     const auto CONV1_C0 = in1_n_c0_hi_wi_c1_lengths[I1];
+    const auto CONV2_C0 = in2_n_c0_hi_wi_c1_lengths[I1];
 
     const auto Hi = in1_n_c0_hi_wi_c1_lengths[I2];
     const auto Wi = in1_n_c0_hi_wi_c1_lengths[I3];
     const auto C1 = in1_n_c0_hi_wi_c1_lengths[I4];
 
-    const auto K = wei1_k_c0_y_x_c1_lengths[I0];
-    const auto Y = wei1_k_c0_y_x_c1_lengths[I2];
-    const auto X = wei1_k_c0_y_x_c1_lengths[I3];
+    const auto K  = wei_k_c0_y_x_c1_lengths[I0];
+    const auto C0 = wei_k_c0_y_x_c1_lengths[I1];
+    const auto Y  = wei_k_c0_y_x_c1_lengths[I2];
+    const auto X  = wei_k_c0_y_x_c1_lengths[I3];
 
     DeviceMem in1_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                            in1_n_c0_hi_wi_c1.mDesc.GetElementSpace());
-    DeviceMem wei1_k_c0_y_x_c1_device_buf(sizeof(TInWei) *
-                                          wei1_k_c0_y_x_c1.mDesc.GetElementSpace());
-
     DeviceMem bias_k0_k1_device_buf(sizeof(TOut) * bias_k0_k1.mDesc.GetElementSpace());
     DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
                                            out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
 
     in1_n_c0_hi_wi_c1_device_buf.ToDevice(in1_n_c0_hi_wi_c1.mData.data());
-    wei1_k_c0_y_x_c1_device_buf.ToDevice(wei1_k_c0_y_x_c1.mData.data());
 
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
 
     const auto in1_n_c0_hi_wi_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, CONV1_C0, Hi, Wi, C1));
-    const auto wei1_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, CONV1_C0, Y, X, C1));
 
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
 
-    const auto CONV2_C0 = in2_n_c0_hi_wi_c1_lengths[I1];
     DeviceMem in2_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                            in2_n_c0_hi_wi_c1.mDesc.GetElementSpace());
-    DeviceMem wei2_k_c0_y_x_c1_device_buf(sizeof(TInWei) *
-                                          wei2_k_c0_y_x_c1.mDesc.GetElementSpace());
 
     in2_n_c0_hi_wi_c1_device_buf.ToDevice(in2_n_c0_hi_wi_c1.mData.data());
-    wei2_k_c0_y_x_c1_device_buf.ToDevice(wei2_k_c0_y_x_c1.mData.data());
 
     const auto in2_n_c0_hi_wi_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, CONV2_C0, Hi, Wi, C1));
+
+    DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
+    wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
+
+    const auto wei1_k_c0_y_x_c1_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(K, CONV1_C0, Y, X, C1));
     const auto wei2_k_c0_y_x_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(K, CONV2_C0, Y, X, C1));
 
@@ -274,8 +269,8 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         2,                               // HoPerThread
         2,                               // WoPerThread
         1,                               // EPerThread
-        Sequence<1, Y * X, 1, 1, C1>,    // ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2
-        Sequence<1, CONV1_C0, 1, 16, 1>, // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
+        Sequence<1, CONV1_C0, 1, 1, C1>, // ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2
+        Sequence<1, Y * X, 1, 16, 1>,    // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
         C1,                              // ABlockTransferSrcScalarPerVector_E2
         C1,                              // ABlockTransferDstScalarPerVector_E2
         C1,                              // BThreadTransferSrcScalarPerVector_E2
@@ -297,8 +292,8 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         2,                               // HoPerThread
         2,                               // WoPerThread
         1,                               // EPerThread
-        Sequence<1, Y * X, 1, 1, C1>,    // ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2
-        Sequence<1, CONV2_C0, 1, 16, 1>, // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
+        Sequence<1, CONV2_C0, 1, 1, C1>, // ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2
+        Sequence<1, Y * X, 1, 16, 1>,    // ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2
         C1,                              // ABlockTransferSrcScalarPerVector_E2
         C1,                              // ABlockTransferDstScalarPerVector_E2
         C1,                              // BThreadTransferSrcScalarPerVector_E2
@@ -343,16 +338,14 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         const auto ave_time =
             conv_driver.Run(conv1_desc,
                             conv2_desc,
-                            static_cast<TInWei*>(wei1_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(wei2_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in2_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
         {
-            float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo *
-                                            (CONV1_C0 + CONV2_C0) * C1 * Y * X) /
+            float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C0 * C1 * Y * X) /
                          (std::size_t(1000) * 1000 * 1000) / ave_time;
 
             std::cout << "Average time : " << ave_time << " ms, " << perf << " TFlop/s"
