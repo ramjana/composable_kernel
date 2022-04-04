@@ -104,10 +104,9 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
             }
         }
 
-        out(n, k0, ho, wo, k1) += v;
-        // v += out(n, k0, ho, wo, k1);
-        // v += bias(k0, k1);
-        // out(n, k0, ho, wo, k1) = activ(v, activ_type);
+        v += out(n, k0, ho, wo, k1);
+        v += bias(k0, k1);
+        out(n, k0, ho, wo, k1) = activ(v, activ_type);
     };
 
     make_ParallelTensorFunctor(f_nchw_1,

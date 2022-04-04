@@ -412,7 +412,6 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
                                               GemmArg2,
                                               p_a_grid,
                                               p_b1_grid,
-                                              p_a_grid + 5120,
                                               p_b2_grid,
                                               p_bias_grid,
                                               p_c_grid);

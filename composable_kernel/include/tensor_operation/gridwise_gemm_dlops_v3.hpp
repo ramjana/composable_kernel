@@ -333,9 +333,8 @@ __global__ void
 #endif
         kernel_gemm_bias_activ_dlops_v4(const GemmArguments1 GemmArg1,
                                         const GemmArguments2 GemmArg2,
-                                        const FloatAB* __restrict__ p_a1_grid,
+                                        const FloatAB* __restrict__ p_a_grid,
                                         const FloatAB* __restrict__ p_b1_grid,
-                                        const FloatAB* __restrict__ p_a2_grid,
                                         const FloatAB* __restrict__ p_b2_grid,
                                         const FloatC* __restrict__ p_bias_global,
                                         FloatC* __restrict__ p_c_grid)
@@ -368,14 +367,14 @@ __global__ void
     const auto c_thread_mtx_index = GridwiseGemm1::GetCThreadIndex();
 
     const auto a1_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_a1_grid, GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+        p_a_grid, GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
     const auto b1_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
         p_b1_grid, GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
 
-    // const auto a2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-    // p_a_grid + GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize(),
     const auto a2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_a2_grid, GemmArg2.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+        p_a_grid + GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize(),
+        GemmArg2.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+
     const auto b2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
         p_b2_grid, GemmArg2.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
 
@@ -410,17 +409,17 @@ __global__ void
         p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
 
     // Bias
-    // GridwiseGemm2::BiasOp(bias_global_buf,
-    // c_thread_buf,
-    // c_k_n_h_w_block_cluster_idx,
-    // c_thread_mtx_index,
-    // bias_k0_k1_grid_desc,
-    // c_k1_n_h2_w2_thread_gemm_desc);
+    GridwiseGemm2::BiasOp(bias_global_buf,
+                          c_thread_buf,
+                          c_k_n_h_w_block_cluster_idx,
+                          c_thread_mtx_index,
+                          bias_k0_k1_grid_desc,
+                          c_k1_n_h2_w2_thread_gemm_desc);
 
     // Activ
     static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
 
-    // GridwiseGemm2::Activation(c_thread_buf, c_k1_n_h2_w2_thread_gemm_desc, activ_type);
+    GridwiseGemm2::Activation(c_thread_buf, c_k1_n_h2_w2_thread_gemm_desc, activ_type);
 
     auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
         p_c_grid, GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
