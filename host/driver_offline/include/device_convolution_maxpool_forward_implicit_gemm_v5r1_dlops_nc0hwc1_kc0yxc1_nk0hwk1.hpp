@@ -2,6 +2,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "driver_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
+#include "ck_conv_fig.h"
 
 template <typename TInWei,
           typename TAcc,
@@ -80,7 +81,34 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
         throw std::runtime_error("wrong! C1 cannot be divided by InWeiVectorSize");
     }
 
-#if 0
+#if USE_CONV_FIG
+    constexpr index_t BlockSize = CONV_BLOCK_SIZE;
+
+    constexpr index_t E1 = CONV_E1;
+    constexpr index_t E2 = CONV_E2;
+    constexpr index_t K2 = CONV_K2;
+
+    constexpr index_t E0PerBlock = CONV_E0_PER_BLOCK;
+    constexpr index_t KPerBlock  = CONV_K_PER_BLOCK;
+    constexpr index_t HoPerBlock = CONV_HO_PER_BLOCK;
+    constexpr index_t WoPerBlock = CONV_WO_PER_BLOCK;
+    constexpr index_t E1PerBlock = CONV_E1_PER_BLOCK;
+
+    constexpr index_t KPerThread  = CONV_K_PER_THREAD;
+    constexpr index_t HoPerThread = CONV_HO_PER_THREAD;
+    constexpr index_t WoPerThread = CONV_WO_PER_THREAD;
+    constexpr index_t EPerThread  = CONV_E_PER_THREAD;
+
+    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2 =
+        Sequence<CONV_ABLOCK_TRANS_THREAD_SLICE_LENGTHS>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 =
+        Sequence<CONV_ABLOCK_TRANS_THREAD_CLUSTER_LENGTHS>;
+
+    constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
+    constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
+    constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
+    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
+#elif 0
     constexpr index_t BlockSize = 256;
 
     constexpr index_t E1 = C0 * Y * X;
@@ -130,7 +158,7 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
     constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
     constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
     constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
-#elif 1
+#elif 0
     constexpr index_t BlockSize = 64;
 
     constexpr index_t E1 = C0 * Y * X;
@@ -148,8 +176,8 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
     constexpr index_t WoPerThread = 2;
     constexpr index_t EPerThread  = 1;
 
-    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, Y * X, 1, 1, C1>;
-    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, C0, 1, KPerBlock, 1>;
+    using ABlockTransferThreadSliceLengths_E0_E1_K0_K1_E2   = Sequence<1, 16 * Y * X, 1, 1, C1>;
+    using ABlockTransferThreadClusterLengths_E0_E1_K0_K1_E2 = Sequence<1, 4, 1, KPerBlock, 1>;
 
     constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
     constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;

@@ -13,6 +13,7 @@
 #include "conv_common.hpp"
 #include "device_tensor.hpp"
 #include "device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
+#include "ck_conv_fig.h"
 
 #define USE_DYNAMIC_MODE 0
 #define USE_CONV_FWD_V5R1_NCHWC 1
@@ -176,40 +177,30 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+#if USE_CONV_FIG
+    constexpr auto N           = Number<CONV_N>{};
+    constexpr auto Hi          = Number<CONV_HI>{};
+    constexpr auto Wi          = Number<CONV_WI>{};
+    constexpr auto Y           = Number<CONV_Y>{};
+    constexpr auto X           = Number<CONV_X>{};
+    constexpr auto C0          = Number<CONV_C0>{};
+    constexpr auto C1          = Number<CONV_C1>{};
+    constexpr auto K0          = Number<CONV_K0>{};
+    constexpr auto K1          = Number<CONV_K1>{};
 
-#if 1
-    constexpr auto N                         = Number<1>{};
-    constexpr auto Hi                        = Number<1080>{};
-    constexpr auto Wi                        = Number<1920>{};
-    constexpr auto Y                         = Number<3>{};
-    constexpr auto X                         = Number<3>{};
-    constexpr auto C0                        = Number<2>{};
-    constexpr auto C1                        = Number<8>{};
-    constexpr auto K0                        = Number<2>{};
-    constexpr auto K1                        = Number<8>{};
-#elif 0
+    constexpr auto conv_stride_h   = Number<CONV_STRIDE_H>{};
+    constexpr auto conv_stride_w   = Number<CONV_STRIDE_W>{};
+    constexpr auto conv_dilation_h = Number<CONV_DILATION_H>{};
+    constexpr auto conv_dilation_w = Number<CONV_DILATION_W>{};
+
+    constexpr auto in_left_pad_h  = Number<CONV_IN_LEFT_PAD_H>{};
+    constexpr auto in_left_pad_w  = Number<CONV_IN_LEFT_PAD_W>{};
+    constexpr auto in_right_pad_h = Number<CONV_IN_RIGHT_PAD_H>{};
+    constexpr auto in_right_pad_w = Number<CONV_IN_RIGHT_PAD_W>{};
+
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::CONV_ACTIV;
+#else
     constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<1080>{};
-    constexpr auto Wi = Number<1920>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<3>{};
-    constexpr auto C1 = Number<4>{};
-    constexpr auto K0 = Number<2>{};
-    constexpr auto K1 = Number<8>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<540>{};
-    constexpr auto Wi = Number<960>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K0 = Number<2>{};
-    constexpr auto K1 = Number<8>{};
-#elif 0
-    constexpr auto N  = Number<128>{};
     constexpr auto Hi = Number<270>{};
     constexpr auto Wi = Number<480>{};
     constexpr auto Y  = Number<3>{};
@@ -218,16 +209,19 @@ int main(int argc, char* argv[])
     constexpr auto C1 = Number<8>{};
     constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-#endif
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
     constexpr auto conv_dilation_h = I1;
     constexpr auto conv_dilation_w = I1;
-    constexpr auto in_left_pad_h   = I1;
-    constexpr auto in_left_pad_w   = I1;
-    constexpr auto in_right_pad_h  = I1;
-    constexpr auto in_right_pad_w  = I1;
+
+    constexpr auto in_left_pad_h  = I1;
+    constexpr auto in_left_pad_w  = I1;
+    constexpr auto in_right_pad_h = I1;
+    constexpr auto in_right_pad_w = I1;
+
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+#endif
 
     constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
     constexpr auto XEff = (X - I1) * conv_dilation_w + I1;
