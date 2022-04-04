@@ -100,7 +100,7 @@ template <typename InLengths,
 struct ConvDesc
 {
     InLengths in_n_c0_hi_wi_c1_desc;
-    WeiLengths wei_k_c0_y_x_c1_desc;
+    WeiLengths wei_c0_y_x_k_c1_desc;
     OutLengths out_n_k0_ho_wo_k1_desc;
 
     ConvStrides conv_strides;
@@ -110,7 +110,7 @@ struct ConvDesc
     InRightPads in_right_pads;
 
     ConvDesc(InLengths in_n_c0_hi_wi_c1_desc_,
-             WeiLengths wei_k_c0_y_x_c1_desc_,
+             WeiLengths wei_c0_y_x_k_c1_desc_,
              OutLengths out_n_k0_ho_wo_k1_desc_,
              ConvStrides conv_strides_,
              ConvDilations conv_dilations_,
@@ -118,7 +118,7 @@ struct ConvDesc
              InRightPads in_right_pads_)
     {
         in_n_c0_hi_wi_c1_desc  = in_n_c0_hi_wi_c1_desc_;
-        wei_k_c0_y_x_c1_desc   = wei_k_c0_y_x_c1_desc_;
+        wei_c0_y_x_k_c1_desc   = wei_c0_y_x_k_c1_desc_;
         out_n_k0_ho_wo_k1_desc = out_n_k0_ho_wo_k1_desc_;
         conv_strides           = conv_strides_;
         conv_dilations         = conv_dilations_;
@@ -147,9 +147,9 @@ struct ConvDesc
         const auto Wo = out_n_k0_ho_wo_k1_desc.GetLength(I3);
         const auto K1 = out_n_k0_ho_wo_k1_desc.GetLength(I4);
 
-        const auto K = wei_k_c0_y_x_c1_desc.GetLength(I0);
-        const auto Y = wei_k_c0_y_x_c1_desc.GetLength(I2);
-        const auto X = wei_k_c0_y_x_c1_desc.GetLength(I3);
+        const auto K = wei_c0_y_x_k_c1_desc.GetLength(I0);
+        const auto Y = wei_c0_y_x_k_c1_desc.GetLength(I2);
+        const auto X = wei_c0_y_x_k_c1_desc.GetLength(I3);
 
         const auto ConvStrideH = conv_strides[I0];
         const auto ConvStrideW = conv_strides[I1];
@@ -182,7 +182,7 @@ template <typename TInWei,
 void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1(
     const In1Lengths& in1_n_c0_hi_wi_c1_lengths,
     const In2Lengths& in2_n_c0_hi_wi_c1_lengths,
-    const WeiLengths& wei_k_c0_y_x_c1_lengths,
+    const WeiLengths& wei_c0_y_x_k_c1_lengths,
     const OutLengths& out_n_k0_ho_wo_k1_lengths,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
@@ -190,7 +190,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const InRightPads& in_right_pads,
     const Tensor<TInWei>& in1_n_c0_hi_wi_c1,
     const Tensor<TInWei>& in2_n_c0_hi_wi_c1,
-    const Tensor<TInWei>& wei_k_c0_y_x_c1,
+    const Tensor<TInWei>& wei_c0_y_x_k_c1,
     const Tensor<TOut>& bias_k0_k1,
     Tensor<TOut>& out_n_k0_ho_wo_k1,
     ck::index_t nrepeat)
@@ -218,10 +218,10 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const auto Wi = in1_n_c0_hi_wi_c1_lengths[I3];
     const auto C1 = in1_n_c0_hi_wi_c1_lengths[I4];
 
-    const auto K  = wei_k_c0_y_x_c1_lengths[I0];
-    const auto C0 = wei_k_c0_y_x_c1_lengths[I1];
-    const auto Y  = wei_k_c0_y_x_c1_lengths[I2];
-    const auto X  = wei_k_c0_y_x_c1_lengths[I3];
+    const auto C0 = wei_c0_y_x_k_c1_lengths[I0];
+    const auto Y  = wei_c0_y_x_k_c1_lengths[I1];
+    const auto X  = wei_c0_y_x_k_c1_lengths[I2];
+    const auto K  = wei_c0_y_x_k_c1_lengths[I3];
 
     DeviceMem in1_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                            in1_n_c0_hi_wi_c1.mDesc.GetElementSpace());
@@ -247,13 +247,13 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const auto in2_n_c0_hi_wi_c1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, CONV2_C0, Hi, Wi, C1));
 
-    DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
-    wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
+    DeviceMem wei_c0_y_x_k_c1_device_buf(sizeof(TInWei) * wei_c0_y_x_k_c1.mDesc.GetElementSpace());
+    wei_c0_y_x_k_c1_device_buf.ToDevice(wei_c0_y_x_k_c1.mData.data());
 
-    const auto wei1_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, CONV1_C0, Y, X, C1));
-    const auto wei2_k_c0_y_x_c1_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(K, CONV2_C0, Y, X, C1));
+    const auto wei1_c0_y_x_k_c1_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(CONV1_C0, Y, X, K, C1));
+    const auto wei2_c0_y_x_k_c1_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(CONV2_C0, Y, X, K, C1));
 
     GridGemmTuningParameters<
         256,                             // BlockSize
@@ -312,7 +312,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
             activ_type>{};
 
     ConvDesc conv1_desc(in1_n_c0_hi_wi_c1_desc,
-                        wei1_k_c0_y_x_c1_desc,
+                        wei1_c0_y_x_k_c1_desc,
                         out_n_k0_ho_wo_k1_desc,
                         conv_strides,
                         conv_dilations,
@@ -320,7 +320,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                         in_right_pads);
 
     ConvDesc conv2_desc(in2_n_c0_hi_wi_c1_desc,
-                        wei2_k_c0_y_x_c1_desc,
+                        wei2_c0_y_x_k_c1_desc,
                         out_n_k0_ho_wo_k1_desc,
                         conv_strides,
                         conv_dilations,
@@ -338,7 +338,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
         const auto ave_time =
             conv_driver.Run(conv1_desc,
                             conv2_desc,
-                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                            static_cast<TInWei*>(wei_c0_y_x_k_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in1_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in2_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),

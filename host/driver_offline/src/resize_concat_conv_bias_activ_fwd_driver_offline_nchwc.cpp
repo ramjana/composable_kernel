@@ -46,7 +46,7 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    if((in1.mDesc.GetLengths()[1] + in2.mDesc.GetLengths()[1]) != wei.mDesc.GetLengths()[1])
+    if((in1.mDesc.GetLengths()[1] + in2.mDesc.GetLengths()[1]) != wei.mDesc.GetLengths()[0])
     {
         throw std::runtime_error("wrong! c0 of in1 + in2 != c0 of wei");
     }
@@ -57,10 +57,10 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
 
         for(int c0 = 0; c0 < in1.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei.mDesc.GetLengths()[1]; ++y)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei.mDesc.GetLengths()[2]; ++x)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in1.mDesc.GetLengths()[2] && wi >= 0 &&
@@ -69,7 +69,7 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
                         for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
                             v += static_cast<const double>(in1(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(wei(k, c0, y, x, c1));
+                                 static_cast<const double>(wei(c0, y, x, k, c1));
                         }
                     }
                 }
@@ -84,10 +84,10 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
 
         for(int c0 = 0; c0 < in2.mDesc.GetLengths()[1]; ++c0)
         {
-            for(int y = 0; y < wei.mDesc.GetLengths()[2]; ++y)
+            for(int y = 0; y < wei.mDesc.GetLengths()[1]; ++y)
             {
                 int hi = ho * conv_strides[I0] + y * conv_dilations[I0] - in_left_pads[I0];
-                for(int x = 0; x < wei.mDesc.GetLengths()[3]; ++x)
+                for(int x = 0; x < wei.mDesc.GetLengths()[2]; ++x)
                 {
                     int wi = wo * conv_strides[I1] + x * conv_dilations[I1] - in_left_pads[I1];
                     if(hi >= 0 && hi < in2.mDesc.GetLengths()[2] && wi >= 0 &&
@@ -97,7 +97,7 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
                         {
                             v += static_cast<const double>(in2(n, c0, hi, wi, c1)) *
                                  static_cast<const double>(
-                                     wei(k, c0 + in1.mDesc.GetLengths()[1], y, x, c1));
+                                     wei(c0 + in1.mDesc.GetLengths()[1], y, x, k, c1));
                         }
                     }
                 }
@@ -105,9 +105,9 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in1,
         }
 
         out(n, k0, ho, wo, k1) += v;
-        //v += out(n, k0, ho, wo, k1);
-        //v += bias(k0, k1);
-        //out(n, k0, ho, wo, k1) = activ(v, activ_type);
+        // v += out(n, k0, ho, wo, k1);
+        // v += bias(k0, k1);
+        // out(n, k0, ho, wo, k1) = activ(v, activ_type);
     };
 
     make_ParallelTensorFunctor(f_nchw_1,
@@ -290,10 +290,10 @@ int main(int argc, char* argv[])
     in2_lengths_host[3] = static_cast<std::size_t>(CONV2_Wi);
     in2_lengths_host[4] = static_cast<std::size_t>(CONV2_C1);
 
-    wei_lengths_host[0] = static_cast<std::size_t>(K);
-    wei_lengths_host[1] = static_cast<std::size_t>(CONV1_C0 + CONV2_C0);
-    wei_lengths_host[2] = static_cast<std::size_t>(Y);
-    wei_lengths_host[3] = static_cast<std::size_t>(X);
+    wei_lengths_host[0] = static_cast<std::size_t>(CONV1_C0 + CONV2_C0);
+    wei_lengths_host[1] = static_cast<std::size_t>(Y);
+    wei_lengths_host[2] = static_cast<std::size_t>(X);
+    wei_lengths_host[3] = static_cast<std::size_t>(K);
     wei_lengths_host[4] = static_cast<std::size_t>(CONV2_C1);
 
     out_lengths_host[0] = static_cast<std::size_t>(N);
@@ -369,7 +369,7 @@ int main(int argc, char* argv[])
 
     const auto in1_lengths_dev    = make_tuple(N, CONV1_C0, CONV1_Hi, CONV1_Wi, CONV1_C1);
     const auto in2_lengths_dev    = make_tuple(N, CONV2_C0, CONV2_Hi, CONV2_Wi, CONV2_C1);
-    const auto wei_lengths_dev    = make_tuple(K, CONV1_C0 + CONV2_C0, Y, X, CONV2_C1);
+    const auto wei_lengths_dev    = make_tuple(CONV1_C0 + CONV2_C0, Y, X, K, CONV2_C1);
     const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
     const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
     const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);

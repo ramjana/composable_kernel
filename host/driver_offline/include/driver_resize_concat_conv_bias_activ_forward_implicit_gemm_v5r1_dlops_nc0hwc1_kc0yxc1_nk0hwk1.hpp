@@ -118,11 +118,11 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
     constexpr auto Wo = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I3)>{};
     constexpr auto K1 = Number<out_n_k0_ho_wo_k1_global_desc.GetLength(I4)>{};
 
-    constexpr auto wei_k_c0_y_x_c1_global_desc = conv_desc.wei_k_c0_y_x_c1_desc;
+    constexpr auto wei_c0_y_x_k_c1_global_desc = conv_desc.wei_c0_y_x_k_c1_desc;
 
-    constexpr auto K = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I0)>{};
-    constexpr auto Y = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I2)>{};
-    constexpr auto X = Number<wei_k_c0_y_x_c1_global_desc.GetLength(I3)>{};
+    constexpr auto Y = Number<wei_c0_y_x_k_c1_global_desc.GetLength(I1)>{};
+    constexpr auto X = Number<wei_c0_y_x_k_c1_global_desc.GetLength(I2)>{};
+    constexpr auto K = Number<wei_c0_y_x_k_c1_global_desc.GetLength(I3)>{};
 
     constexpr auto ConvStrideH = Number<conv_desc.conv_strides[I0]>{};
     constexpr auto ConvStrideW = Number<conv_desc.conv_strides[I1]>{};
@@ -152,12 +152,12 @@ constexpr auto MakeGridwiseGemm(ConvDesc conv_desc)
 
     // weight tensor
     constexpr auto a_e_k_e2_grid_desc =
-        transform_tensor_descriptor(make_naive_tensor_descriptor_packed(make_tuple(K, E, E2)),
-                                    make_tuple(make_pass_through_transform(K),
-                                               make_pass_through_transform(E),
+        transform_tensor_descriptor(make_naive_tensor_descriptor_packed(make_tuple(E, K, E2)),
+                                    make_tuple(make_pass_through_transform(E),
+                                               make_pass_through_transform(K),
                                                make_pass_through_transform(E2)),
                                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-                                    make_tuple(Sequence<1>{}, Sequence<0>{}, Sequence<2>{}));
+                                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
     static_assert(a_e_k_e2_grid_desc.IsKnownAtCompileTime(), "");
 
@@ -411,8 +411,8 @@ struct DriverDynamicResizeConcatConvBiasActivForwardImplicitGemmDlops_v5r1_nc0hw
                                               GemmArg1,
                                               GemmArg2,
                                               p_a_grid,
-                                              p_a_grid + 5120,
                                               p_b1_grid,
+                                              p_a_grid + 5120,
                                               p_b2_grid,
                                               p_bias_grid,
                                               p_c_grid);
