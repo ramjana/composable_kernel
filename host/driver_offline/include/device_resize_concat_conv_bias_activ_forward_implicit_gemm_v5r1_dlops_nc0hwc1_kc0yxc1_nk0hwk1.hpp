@@ -2,7 +2,7 @@
 #include "device.hpp"
 #include "host_tensor.hpp"
 #include "driver_resize_concat_conv_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1.hpp"
-#include "ck_conv_fig.h"
+//#include "ck_conv_fig.h"
 
 template <ck::index_t BlockSize_,
           ck::index_t E1_,
@@ -327,11 +327,16 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                         in_left_pads,
                         in_right_pads);
 
-    conv1_tuning_parameters.printTuningParameters();
-    conv2_tuning_parameters.printTuningParameters();
+    std::cout << "input_n" << N << "c" << CONV1_C0 << "h" << Hi << "w" << Wi << "c" << C1
+              << "_input_n" << N << "c" << CONV2_C0 << "h" << Hi << "w" << Wi << "c" << C1
+              << "_filter_k" << K << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_out_n" << N
+              << "k" << K0 << "h" << Ho << "w" << Wo << "k" << K1 << std::endl;
 
-    conv1_desc.printConvDesc();
-    conv2_desc.printConvDesc();
+    conv1_tuning_parameters.printTuningParameters();
+    // conv2_tuning_parameters.printTuningParameters();
+
+    // conv1_desc.printConvDesc();
+    // conv2_desc.printConvDesc();
 
     for(int i = 0; i < 5; i++)
     {

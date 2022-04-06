@@ -197,16 +197,24 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-#if 0
+#if USE_CONV_FIG
     constexpr auto N           = Number<CONV_N>{};
-    constexpr auto Hi          = Number<CONV_HI>{};
-    constexpr auto Wi          = Number<CONV_WI>{};
-    constexpr auto Y           = Number<CONV_Y>{};
-    constexpr auto X           = Number<CONV_X>{};
-    constexpr auto C0          = Number<CONV_C0>{};
-    constexpr auto C1          = Number<CONV_C1>{};
-    constexpr auto K0          = Number<CONV_K0>{};
-    constexpr auto K1          = Number<CONV_K1>{};
+
+    constexpr auto CONV1_C0 = Number<CONV1_C0_>{};
+    constexpr auto CONV1_Hi = Number<CONV1_HI_>{};
+    constexpr auto CONV1_Wi = Number<CONV1_WI_>{};
+    constexpr auto CONV1_C1 = Number<CONV1_C1_>{};
+
+    constexpr auto CONV2_C0 = Number<CONV2_C0_>{};
+    constexpr auto CONV2_Hi = Number<CONV2_HI_>{};
+    constexpr auto CONV2_Wi = Number<CONV2_WI_>{};
+    constexpr auto CONV2_C1 = Number<CONV2_C1_>{};
+
+    constexpr auto Y  = Number<CONV_Y>{};
+    constexpr auto X  = Number<CONV_X>{};
+    constexpr auto K0 = Number<CONV_K0>{};
+    constexpr auto K1 = Number<CONV_K1>{};
+    constexpr auto K  = Number<K0 * K1>{};
 
     constexpr auto conv_stride_h   = Number<CONV_STRIDE_H>{};
     constexpr auto conv_stride_w   = Number<CONV_STRIDE_W>{};

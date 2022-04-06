@@ -64,7 +64,6 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
 
-    // blocksize = 256
 #if USE_CONV_FIG
     constexpr index_t BlockSize = CONV_BLOCK_SIZE;
 

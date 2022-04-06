@@ -1,9 +1,9 @@
 
-dump_dict=deepwise_conv_bias_activ_1080p_c8_dumps_b256
+dump_dict=fsr_regular_1080p_nchwc8_b256_dumps
 
 conv_fig=../host/driver_offline/include/ck_conv_fig.h
 
-op=conv_bias_activ_fwd_driver_offline_nchwc
+op=conv_add_fwd_driver_offline_nchwc
 
 
 echo '' > $conv_fig

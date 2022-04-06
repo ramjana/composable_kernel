@@ -225,11 +225,17 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
             CThreadTransferDstScalarPerVector_K,
             activ_type>{};
 
-    std::cerr << "conv_bias_activ_maxpool_input_"
+    std::cerr << "input_"
               << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
               << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_convout_n" << N << "k" << K0
               << "h" << Ho << "w" << Wo << "k" << K1 << "_maxpoolout_n" << N << "k" << K0 << "h"
               << Ho / 2 << "w" << Wo / 2 << "k" << K1 << std::endl;
+
+    std::cerr << "BlockSize_" << BlockSize << "_E1_" << E1 << "_E2_" << E2 << "_K2_" << K2
+              << "_KPerBlock_" << KPerBlock << "_HoPerBlock_" << HoPerBlock << "_WoPerBlock_"
+              << WoPerBlock << "_E0PerBlock_" << E0PerBlock << "_E1PerBlock_" << E1PerBlock
+              << "_KPerThread_" << KPerThread << "_HoPerThread_" << HoPerThread << "_WoPerThread_"
+              << WoPerThread << "_EPerThread_" << EPerThread << std::endl;
 
     for(int i = 0; i < 5; i++)
     {

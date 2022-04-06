@@ -1337,7 +1337,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             CThreadTransferSrcDstAccessOrder,
             CThreadTransferSrcDstVectorDim,
             CThreadTransferDstScalarPerVector,
-            InMemoryDataOperationEnum_t::Add,
+            InMemoryDataOperationEnum_t::Set,
             1,
             true>(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
                   make_multi_index(k_block_work_id,

@@ -78,12 +78,17 @@ void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
         const int hox2 = ho * 2;
         const int wox2 = wo * 2;
 
-        out_host(n, k0, ho, wo, k1) = v;
+        // out_host(n, k0, ho, wo, k1) = v;
 
-        add_host(n, k0, hox2, wox2, k1)         = v + add(n, k0, hox2, wox2, k1);
-        add_host(n, k0, hox2, wox2 + 1, k1)     = v + add(n, k0, hox2, wox2 + 1, k1);
-        add_host(n, k0, hox2 + 1, wox2, k1)     = v + add(n, k0, hox2 + 1, wox2, k1);
-        add_host(n, k0, hox2 + 1, wox2 + 1, k1) = v + add(n, k0, hox2 + 1, wox2 + 1, k1);
+        // add_host(n, k0, hox2, wox2, k1)         = v + add(n, k0, hox2, wox2, k1);
+        // add_host(n, k0, hox2, wox2 + 1, k1)     = v + add(n, k0, hox2, wox2 + 1, k1);
+        // add_host(n, k0, hox2 + 1, wox2, k1)     = v + add(n, k0, hox2 + 1, wox2, k1);
+        // add_host(n, k0, hox2 + 1, wox2 + 1, k1) = v + add(n, k0, hox2 + 1, wox2 + 1, k1);
+
+        add_host(n, k0, hox2, wox2, k1)         = v;
+        add_host(n, k0, hox2, wox2 + 1, k1)     = v;
+        add_host(n, k0, hox2 + 1, wox2, k1)     = v;
+        add_host(n, k0, hox2 + 1, wox2 + 1, k1) = v;
     };
 
     make_ParallelTensorFunctor(f_nchw,
@@ -167,29 +172,29 @@ int main(int argc, char* argv[])
     const bool do_log          = std::stoi(argv[4]);
     const int nrepeat          = std::stoi(argv[5]);
 
-    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+#if USE_CONV_FIG
+    constexpr auto N           = Number<CONV_N>{};
+    constexpr auto Hi          = Number<CONV_HI>{};
+    constexpr auto Wi          = Number<CONV_WI>{};
+    constexpr auto Y           = Number<CONV_Y>{};
+    constexpr auto X           = Number<CONV_X>{};
+    constexpr auto C0          = Number<CONV_C0>{};
+    constexpr auto C1          = Number<CONV_C1>{};
+    constexpr auto K0          = Number<CONV_K0>{};
+    constexpr auto K1          = Number<CONV_K1>{};
 
-#if 0
-    constexpr auto N             = Number<1>{};
-    constexpr auto Hi            = Number<1080>{};
-    constexpr auto Wi            = Number<1920>{};
-    constexpr auto Y             = Number<3>{};
-    constexpr auto X             = Number<3>{};
-    constexpr auto C0            = Number<2>{};
-    constexpr auto C1            = Number<8>{};
-    constexpr auto K1            = Number<8>{};
-    constexpr auto K0            = Number<8>{};
-#elif 0
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<540>{};
-    constexpr auto Wi = Number<960>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K0 = Number<2>{};
-    constexpr auto K1 = Number<8>{};
-#elif 0
+    constexpr auto conv_stride_h   = Number<CONV_STRIDE_H>{};
+    constexpr auto conv_stride_w   = Number<CONV_STRIDE_W>{};
+    constexpr auto conv_dilation_h = Number<CONV_DILATION_H>{};
+    constexpr auto conv_dilation_w = Number<CONV_DILATION_W>{};
+
+    constexpr auto in_left_pad_h  = Number<CONV_IN_LEFT_PAD_H>{};
+    constexpr auto in_left_pad_w  = Number<CONV_IN_LEFT_PAD_W>{};
+    constexpr auto in_right_pad_h = Number<CONV_IN_RIGHT_PAD_H>{};
+    constexpr auto in_right_pad_w = Number<CONV_IN_RIGHT_PAD_W>{};
+
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::CONV_ACTIV;
+#else
     constexpr auto N  = Number<1>{};
     constexpr auto Hi = Number<270>{};
     constexpr auto Wi = Number<480>{};
@@ -199,36 +204,19 @@ int main(int argc, char* argv[])
     constexpr auto C1 = Number<8>{};
     constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<8>{};
-#elif 1
-    constexpr auto N  = Number<128>{};
-    constexpr auto Hi = Number<135>{};
-    constexpr auto Wi = Number<240>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K0 = Number<2>{};
-    constexpr auto K1 = Number<8>{};
-#elif 1
-    constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<32>{};
-    constexpr auto Wi = Number<32>{};
-    constexpr auto Y  = Number<3>{};
-    constexpr auto X  = Number<3>{};
-    constexpr auto C0 = Number<2>{};
-    constexpr auto C1 = Number<8>{};
-    constexpr auto K1 = Number<8>{};
-    constexpr auto K0 = Number<8>{};
-#endif
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
     constexpr auto conv_dilation_h = I1;
     constexpr auto conv_dilation_w = I1;
-    constexpr auto in_left_pad_h   = I1;
-    constexpr auto in_left_pad_w   = I1;
-    constexpr auto in_right_pad_h  = I1;
-    constexpr auto in_right_pad_w  = I1;
+
+    constexpr auto in_left_pad_h  = I1;
+    constexpr auto in_left_pad_w  = I1;
+    constexpr auto in_right_pad_h = I1;
+    constexpr auto in_right_pad_w = I1;
+
+    constexpr ck::ActivTypeEnum_t activ_type = ActivTypeEnum_t::LeakyRelu;
+#endif
 
     constexpr auto YEff = (Y - I1) * conv_dilation_h + I1;
     constexpr auto XEff = (X - I1) * conv_dilation_w + I1;
