@@ -11,7 +11,8 @@ __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }
 
 __device__ index_t get_wave_local_1d_id() { return threadIdx.x / get_wave_size(); }
 
-__device__ index_t get_block_1d_id() { return (gridDim.x - 1) - blockIdx.x; }
+//__device__ index_t get_block_1d_id() { return (gridDim.x - 1) - blockIdx.x; }
+__device__ index_t get_block_1d_id() { return blockIdx.x; }
 
 } // namespace ck
 
