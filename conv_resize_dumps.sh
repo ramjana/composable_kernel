@@ -65,6 +65,8 @@ echo "#define CONV_E_PER_THREAD 1" >> $conv_fig
 echo "#define CONV_ABLOCK_TRANS_THREAD_SLICE_LENGTHS 1, Y * X, 1, 1, C1" >> $conv_fig
 echo "#define CONV_ABLOCK_TRANS_THREAD_CLUSTER_LENGTHS 1, C0, 1, KPerBlock, 1" >> $conv_fig 
 
+rm host/driver_offline/$op-hip-amdgcn-amd-amdhsa-gfx1030.*
+
 make -j $op
 
 ./host/driver_offline/$op 0 1 4 0 5 2>&1 | tee log

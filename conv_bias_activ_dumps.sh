@@ -72,6 +72,7 @@ else
     echo "#define CONV_ABLOCK_TRANS_THREAD_CLUSTER_LENGTHS 1, C0, 1, KPerBlock, 1" >> $conv_fig
 fi
 
+rm host/driver_offline/$op-hip-amdgcn-amd-amdhsa-gfx1030.*
 
 make -j $op
 
@@ -80,15 +81,17 @@ make -j $op
 kernel=`sed -n -e '/^input/p' log`
 tparm=`sed -n -e '/^BlockSize/p' log`
 
+echo $dump_dict
 echo $kernel
 echo $tparm
 
 mkdir -p ../$dump_dict/$kernel
 
-rm ../$dump_dict/$kernel/*
+#rm ../$dump_dict/$kernel/*
 
 cp host/driver_offline/$op-hip-amdgcn-amd-amdhsa-gfx1030.* ../$dump_dict/$kernel
 
+touch ../$dump_dict/$kernel/$kernel
 touch ../$dump_dict/$kernel/$tparm
 
 ls -ls ../$dump_dict/$kernel

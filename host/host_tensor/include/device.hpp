@@ -15,6 +15,7 @@ struct DeviceMem
     void* GetDeviceBuffer();
     void ToDevice(const void* p);
     void FromDevice(void* p);
+    void ResetMem();
     ~DeviceMem();
 
     void* mpDeviceBuf;

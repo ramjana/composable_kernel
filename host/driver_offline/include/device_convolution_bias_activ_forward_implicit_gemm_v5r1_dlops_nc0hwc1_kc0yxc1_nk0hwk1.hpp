@@ -206,28 +206,72 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
               << "n" << N << "c" << C0 << "h" << Hi << "w" << Wi << "c" << C1 << "_filter_k" << K
               << "c" << C0 << "y" << Y << "x" << X << "c" << C1 << "_out_n" << N << "k" << K0 << "h"
               << Ho << "w" << Wo << "k" << K1 << std::endl;
+
     std::cerr << "BlockSize_" << BlockSize << "_E1_" << E1 << "_E2_" << E2 << "_K2_" << K2
               << "_KPerBlock_" << KPerBlock << "_HoPerBlock_" << HoPerBlock << "_WoPerBlock_"
               << WoPerBlock << "_E0PerBlock_" << E0PerBlock << "_E1PerBlock_" << E1PerBlock
               << "_KPerThread_" << KPerThread << "_HoPerThread_" << HoPerThread << "_WoPerThread_"
               << WoPerThread << "_EPerThread_" << EPerThread << std::endl;
 
+    const auto Hop         = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
+    const auto Wop         = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
+    const auto num_h_tiles = 2;
+    const auto num_w_tiles = 2;
+    const auto grid_stride = make_tuple(K / KPerBlock,
+                                        (Hop / HoPerBlock + num_h_tiles) / num_h_tiles,
+                                        (Wop / WoPerBlock + num_w_tiles) / num_w_tiles);
+
+    // int flush_size = 1e+9;
+
+    // DeviceMem flush_mem(flush_size);
+
+    // auto flush_data = new char[flush_size];
+
+    // memset(flush_data, 0, flush_size);
+
     for(int i = 0; i < 5; i++)
     {
-        const auto ave_time =
-            conv_driver.Run(wei_k_c0_y_x_c1_desc,
-                            in_n_c0_hi_wi_c1_desc,
-                            out_n_k0_ho_wo_k1_desc,
-                            conv_strides,
-                            conv_dilations,
-                            in_left_pads,
-                            in_right_pads,
-                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
-                            nrepeat);
+        // flush_mem.ToDevice(flush_data);
 
+        // hipGetErrorString(hipDeviceSynchronize());
+
+        float ave_time = 0;
+        for(int h_i = 0; h_i < num_h_tiles; h_i++)
+        {
+            for(int w_i = 0; w_i < num_w_tiles; w_i++)
+            {
+                const auto grid_offset =
+                    ck::make_tuple(0, grid_stride[I1] * h_i, grid_stride[I2] * w_i);
+
+                const auto grid_size_k = grid_stride[I0] > (K - grid_offset[I0])
+                                             ? (K - grid_offset[I0])
+                                             : grid_stride[I0];
+                const auto grid_size_h = grid_stride[I1] > (Hop - grid_offset[I1])
+                                             ? (Hop - grid_offset[I1])
+                                             : grid_stride[I1];
+                const auto grid_size_w = grid_stride[I2] > (Wop - grid_offset[I2])
+                                             ? (Wop - grid_offset[I2])
+                                             : grid_stride[I2];
+
+                const auto grid_size = make_tuple(grid_size_k, grid_size_h, grid_size_w);
+
+                ave_time += conv_driver.Run(
+                    wei_k_c0_y_x_c1_desc,
+                    in_n_c0_hi_wi_c1_desc,
+                    out_n_k0_ho_wo_k1_desc,
+                    conv_strides,
+                    conv_dilations,
+                    in_left_pads,
+                    in_right_pads,
+                    static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+                    static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+                    static_cast<TOut*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
+                    static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+                    grid_size,
+                    grid_offset,
+                    nrepeat);
+            }
+        }
         {
             float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C0 * C1 * Y * X) /
                          (std::size_t(1000) * 1000 * 1000) / ave_time;

@@ -326,7 +326,7 @@ int main(int argc, char* argv[])
         wei.GenerateTensorValue(gen_wei, num_thread);
     }
 
-    bias.GenerateTensorValue(GeneratorTensor_1<out_data_t>{}, num_thread);
+    bias.GenerateTensorValue(GeneratorTensor_2<out_data_t>{-5, 5}, num_thread);
     add.GenerateTensorValue(GeneratorTensor_1<out_data_t>{}, num_thread);
 
     auto f_make_for_device_nchwc = [&]() {

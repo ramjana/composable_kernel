@@ -5,6 +5,8 @@ DeviceMem::DeviceMem(std::size_t mem_size) : mMemSize(mem_size)
     hipGetErrorString(hipMalloc(static_cast<void**>(&mpDeviceBuf), mMemSize));
 }
 
+void DeviceMem::ResetMem() { hipGetErrorString(hipMemset(mpDeviceBuf, 0, mMemSize)); }
+
 void* DeviceMem::GetDeviceBuffer() { return mpDeviceBuf; }
 
 void DeviceMem::ToDevice(const void* p)

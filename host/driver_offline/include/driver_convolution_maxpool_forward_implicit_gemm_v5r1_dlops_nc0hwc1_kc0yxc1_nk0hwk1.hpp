@@ -38,7 +38,9 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
               typename ConvStrides,
               typename ConvDilations,
               typename InLeftPads,
-              typename InRightPads>
+              typename InRightPads,
+              typename GridSize_K_H_W,
+              typename GridOffset_K_H_W>
     __host__ float Run(const ck::TensorDescriptor<Wei...>& wei_k_c0_y_x_c1_global_desc,
                        const ck::TensorDescriptor<In...>& in_n_c0_hi_wi_c1_global_desc,
                        const ck::TensorDescriptor<Out...>& out_n_k0_ho_wo_k1_global_desc,
@@ -52,6 +54,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                        const FloatC* __restrict__ p_bias_grid,
                        FloatC* __restrict__ p_c_grid,
                        FloatC* __restrict__ p_d_grid,
+                       const GridSize_K_H_W grid_size_k_h_w,
+                       const GridOffset_K_H_W grid_offset_k_h_w,
                        const int nrepeat) const
     {
         using namespace ck;
@@ -265,7 +269,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
         using CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 = decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
         using DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx = decltype(d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc);
 
-        const auto grid_size = (K / KPerBlock) * (Hop / HoPerBlock) * (Wop / WoPerBlock) * N;
+        // const auto grid_size = (K / KPerBlock) * (Hop / HoPerBlock) * (Wop / WoPerBlock) * N;
 
         const bool has_main_e0_block_loop = E0 > 1;
 
@@ -361,16 +365,29 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 has_main_e0_block_loop,
                 activ_type>;
 
-            ave_time = launch_and_time_kernel(kernel,
-                                              nrepeat,
-                                              dim3(grid_size),
-                                              dim3(BlockSize),
-                                              0,
-                                              p_a_grid,
-                                              p_b_grid,
-                                              p_bias_grid,
-                                              p_c_grid,
-                                              p_d_grid);
+            printf("grid_size: %d %d %d\n",
+                   grid_size_k_h_w[I0],
+                   grid_size_k_h_w[I1],
+                   grid_size_k_h_w[I2]);
+            printf("grid_offset: %d %d %d\n",
+                   grid_offset_k_h_w[I0],
+                   grid_offset_k_h_w[I1],
+                   grid_offset_k_h_w[I2]);
+
+            ave_time = launch_and_time_kernel(
+                kernel,
+                nrepeat,
+                dim3(grid_size_k_h_w[I0], grid_size_k_h_w[I1], grid_size_k_h_w[I2]),
+                dim3(BlockSize),
+                0,
+                p_a_grid,
+                p_b_grid,
+                p_bias_grid,
+                p_c_grid,
+                p_d_grid,
+                grid_offset_k_h_w[I0],
+                grid_offset_k_h_w[I1],
+                grid_offset_k_h_w[I2]);
         }
 #endif
         return ave_time;
