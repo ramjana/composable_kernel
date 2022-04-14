@@ -377,7 +377,7 @@ struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc
                 ave_time = launch_and_time_kernel(
                     kernel,
                     nrepeat,
-                    dim3(grid_size_k_h_w[I0], grid_size_k_h_w[I1], grid_size_k_h_w[I2]),
+                    dim3(grid_size_k_h_w[I2], grid_size_k_h_w[I1], grid_size_k_h_w[I0]),
                     dim3(BlockSize),
                     0,
                     p_a_grid,

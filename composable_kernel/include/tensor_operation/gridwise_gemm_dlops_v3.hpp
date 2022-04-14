@@ -224,10 +224,10 @@ __global__ void
     // constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
     // CBlockIdToBlockClusterAdaptor_K_N_H_W{};
 
-    const auto blockId_k = blockIdx.x + blockId_offset_K;
     const auto blockId_n = 0;
+    const auto blockId_w = blockIdx.x + blockId_offset_W;
     const auto blockId_h = blockIdx.y + blockId_offset_H;
-    const auto blockId_w = blockIdx.z + blockId_offset_W;
+    const auto blockId_k = blockIdx.z + blockId_offset_K;
 
     const auto c_k_n_h_w_block_cluster_idx = make_tuple(blockId_k, blockId_n, blockId_h, blockId_w);
 
@@ -281,10 +281,10 @@ __global__ void
     // constexpr auto c_blockid_to_k_n_h_w_block_cluster_adaptor =
     // CBlockIdToBlockClusterAdaptor_K_N_H_W{};
 
-    const auto blockId_k = blockIdx.x + blockId_offset_K;
     const auto blockId_n = 0;
+    const auto blockId_w = blockIdx.x + blockId_offset_W;
     const auto blockId_h = blockIdx.y + blockId_offset_H;
-    const auto blockId_w = blockIdx.z + blockId_offset_W;
+    const auto blockId_k = blockIdx.z + blockId_offset_K;
 
     const auto c_k_n_h_w_block_cluster_idx = make_tuple(blockId_k, blockId_n, blockId_h, blockId_w);
 
@@ -497,10 +497,10 @@ __global__ void
     static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}(
         [&](auto i) { c_thread_buf(i) = 0; });
 
-    const auto blockId_k = blockIdx.x + blockId_offset_K;
     const auto blockId_n = 0;
+    const auto blockId_w = blockIdx.x + blockId_offset_W;
     const auto blockId_h = blockIdx.y + blockId_offset_H;
-    const auto blockId_w = blockIdx.z + blockId_offset_W;
+    const auto blockId_k = blockIdx.z + blockId_offset_K;
 
     // const auto c_k_n_h_w_block_cluster_idx =
     // GridwiseGemm::GetCBlockIndex(c_blockid_to_k_n_h_w_block_cluster_adaptor, get_block_1d_id());
