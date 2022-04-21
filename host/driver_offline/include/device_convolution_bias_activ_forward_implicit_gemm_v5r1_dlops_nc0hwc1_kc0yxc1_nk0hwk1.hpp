@@ -215,26 +215,17 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
 
     const auto Hop         = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
     const auto Wop         = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
+
     const auto num_h_tiles = 2;
     const auto num_w_tiles = 2;
-    const auto grid_stride = make_tuple(K / KPerBlock,
-                                        (Hop / HoPerBlock + num_h_tiles) / num_h_tiles,
-                                        (Wop / WoPerBlock + num_w_tiles) / num_w_tiles);
 
-    // int flush_size = 1e+9;
+    const int grid_stride_h = ceil(float(Hop / HoPerBlock) / num_h_tiles);
+    const int grid_stride_w = ceil(float(Wop / WoPerBlock) / num_w_tiles);
 
-    // DeviceMem flush_mem(flush_size);
-
-    // auto flush_data = new char[flush_size];
-
-    // memset(flush_data, 0, flush_size);
+    const auto grid_stride = make_tuple(K / KPerBlock, grid_stride_h, grid_stride_w);
 
     for(int i = 0; i < 5; i++)
     {
-        // flush_mem.ToDevice(flush_data);
-
-        // hipGetErrorString(hipDeviceSynchronize());
-
         float ave_time = 0;
         for(int h_i = 0; h_i < num_h_tiles; h_i++)
         {

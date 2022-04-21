@@ -239,11 +239,16 @@ void device_convolution_maxpool_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1
 
     const auto Hop         = (Ho + HoPerBlock - 1) / HoPerBlock * HoPerBlock;
     const auto Wop         = (Wo + WoPerBlock - 1) / WoPerBlock * WoPerBlock;
+
     const auto num_h_tiles = 2;
     const auto num_w_tiles = 2;
-    const auto grid_stride = make_tuple(K / KPerBlock,
-                                        (Hop / HoPerBlock + num_h_tiles) / num_h_tiles,
-                                        (Wop / WoPerBlock + num_w_tiles) / num_w_tiles);
+
+
+    const int grid_stride_h = ceil(float(Hop / HoPerBlock) / num_h_tiles);
+    const int grid_stride_w = ceil(float(Wop / WoPerBlock) / num_w_tiles);
+
+    const auto grid_stride = make_tuple(K / KPerBlock, grid_stride_h, grid_stride_w);
+
 
     for(int i = 0; i < 5; i++)
     {
