@@ -91,9 +91,6 @@
 // experimental feature: multi index implemented as array
 #define CK_EXPERIMENTAL_USE_DYNAMICALLY_INDEXED_MULTI_INDEX 0
 
-// experimental feature: static tensor descriptor
-#define CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR 0
-
 // experimental feature: buffer load/store/atomic-add OOB trick
 #define CK_EXPERIMENTAL_USE_BUFFER_LOAD_OOB_CHECK_OFFSET_TRICK 0
 #define CK_EXPERIMENTAL_USE_BUFFER_STORE_OOB_CHECK_OFFSET_TRICK 1
