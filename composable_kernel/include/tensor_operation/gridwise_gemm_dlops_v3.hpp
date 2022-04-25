@@ -904,7 +904,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
     }
 
     __host__ __device__ static constexpr auto
-    MakeCBlockIdToKNHoWoBlockClusterAdaptor(const CGridDesc_K_N_Ho_Wo& c_k_n_ho_wo_grid_desc)
+    MakeCBlockIdToKNHoWoBlockClusterAdaptor(const CGridDesc_K_N_Ho_Wo&)
     {
         constexpr index_t K  = CGridDesc_K_N_Ho_Wo{}.GetLength(I0);
         constexpr index_t N  = CGridDesc_K_N_Ho_Wo{}.GetLength(I1);
@@ -2305,7 +2305,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
 
-        const index_t block_id = get_block_1d_id();
+        // const index_t block_id = get_block_1d_id();
 
         const auto c_thread_mtx_index = GetCThreadIndex();
 

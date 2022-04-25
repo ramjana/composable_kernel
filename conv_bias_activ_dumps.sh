@@ -75,20 +75,25 @@ fi
 
 make -j $op
 
-./host/driver_offline/$op 0 1 4 0 5 2>&1 | tee log
+./host/driver_offline/$op 0 1 4 0 5 2>&1 | tee tmp_log
 
-kernel=`sed -n -e '/^input/p' log`
-tparm=`sed -n -e '/^BlockSize/p' log`
+kernel=`sed -n -e '/^input/p' tmp_log`
+tparm=`sed -n -e '/^BlockSize/p' tmp_log`
+
+kernel=conv_bias_activ_${kernel}
 
 echo $kernel
 echo $tparm
 
 mkdir -p ../$dump_dict/$kernel
 
-rm ../$dump_dict/$kernel/*
+#rm ../$dump_dict/$kernel/*
 
 cp host/driver_offline/$op-hip-amdgcn-amd-amdhsa-gfx1030.* ../$dump_dict/$kernel
+cp tmp_log ../$dump_dict/$kernel/log_${kernel}
 
-touch ../$dump_dict/$kernel/$tparm
+grep end_amdhsa_kernel host/driver_offline/$op-hip-amdgcn-amd-amdhsa-gfx1030.s
+
+#touch ../$dump_dict/$kernel/$tparm
 
 ls -ls ../$dump_dict/$kernel
