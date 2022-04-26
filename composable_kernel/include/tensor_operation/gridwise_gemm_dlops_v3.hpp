@@ -48,146 +48,6 @@ __global__ void
                        c_blockid_to_k_n_h_w_block_cluster_adaptor,
                        integral_constant<bool, HasMainE0BlockLoop>{});
 }
-
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_E0_E1_K0_K1_E2,
-          typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
-          typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
-          bool HasMainE0BlockLoop>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_batched_gemm_dlops_v3(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,
-            const AGridDesc_E0_E1_K0_K1_E2 a_e0_e1_k0_k1_e2_grid_desc,
-            const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-            const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-            const CBlockIdToBlockClusterAdaptor_K_N_H_W c_blockid_to_k_n_h_w_block_cluster_adaptor,
-            index_t group_grid_size)
-{
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-    __shared__ FloatAB p_shared_block[shared_block_size];
-
-    const index_t group_id = get_block_1d_id() / group_grid_size;
-
-    const index_t a_stride_grp = a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize();
-    const index_t b_stride_grp = b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize();
-    const index_t c_stride_grp = c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize();
-
-    const FloatAB* p_a_grid_grp = p_a_grid + group_id * a_stride_grp;
-    const FloatAB* p_b_grid_grp = p_b_grid + group_id * b_stride_grp;
-
-    FloatC* p_c_grid_grp = p_c_grid + group_id * c_stride_grp;
-
-    GridwiseGemm::GroupConv(p_a_grid_grp,
-                            p_b_grid_grp,
-                            p_c_grid_grp,
-                            p_shared_block,
-                            group_grid_size,
-                            a_e0_e1_k0_k1_e2_grid_desc,
-                            b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                            c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                            c_blockid_to_k_n_h_w_block_cluster_adaptor,
-                            integral_constant<bool, HasMainE0BlockLoop>{});
-}
-
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_E0_E1_K0_K1_E2,
-          typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
-          typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
-          typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
-          bool HasMainE0BlockLoop,
-          ActivTypeEnum_t ActivType>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_dlops_v3_resize_add(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            const FloatC* __restrict__ p_bias_grid,
-            FloatC* __restrict__ p_d_grid,
-            const AGridDesc_E0_E1_K0_K1_E2 a_e0_e1_k0_k1_e2_grid_desc,
-            const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-            const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-            const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-            const CBlockIdToBlockClusterAdaptor_K_N_H_W c_blockid_to_k_n_h_w_block_cluster_adaptor)
-{
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-    __shared__ FloatAB p_shared_block[shared_block_size];
-
-    GridwiseGemm::ConvBiasActivResizeAdd(p_a_grid,
-                                         p_b_grid,
-                                         p_bias_grid,
-                                         p_d_grid,
-                                         p_shared_block,
-                                         a_e0_e1_k0_k1_e2_grid_desc,
-                                         b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                                         c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                                         d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                                         c_blockid_to_k_n_h_w_block_cluster_adaptor,
-                                         integral_constant<bool, HasMainE0BlockLoop>{},
-                                         integral_constant<ActivTypeEnum_t, ActivType>{});
-}
-
-template <typename GridwiseGemm,
-          typename FloatAB,
-          typename FloatC,
-          typename AGridDesc_E0_E1_K0_K1_E2,
-          typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-          typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
-          typename DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx,
-          typename CBlockIdToBlockClusterAdaptor_K_N_H_W,
-          bool HasMainE0BlockLoop,
-          ActivTypeEnum_t ActivType>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_dlops_v3_maxpool(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            const FloatC* __restrict__ p_bias_grid,
-            FloatC* __restrict__ p_c_grid,
-            FloatC* __restrict__ p_d_grid,
-            const AGridDesc_E0_E1_K0_K1_E2 a_e0_e1_k0_k1_e2_grid_desc,
-            const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2 b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-            const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2 c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-            const DGridDesc_K0_K1_N_H0_H1_Hx_W0_W1_Wx d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-            const CBlockIdToBlockClusterAdaptor_K_N_H_W c_blockid_to_k_n_h_w_block_cluster_adaptor)
-{
-    constexpr index_t shared_block_size =
-        GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-    __shared__ FloatAB p_shared_block[shared_block_size];
-
-    GridwiseGemm::ConvBiasActivMaxpool(p_a_grid,
-                                       p_b_grid,
-                                       p_bias_grid,
-                                       p_c_grid,
-                                       p_d_grid,
-                                       p_shared_block,
-                                       a_e0_e1_k0_k1_e2_grid_desc,
-                                       b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                                       c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                                       d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc,
-                                       c_blockid_to_k_n_h_w_block_cluster_adaptor,
-                                       integral_constant<bool, HasMainE0BlockLoop>{},
-                                       integral_constant<ActivTypeEnum_t, ActivType>{});
-}
 #elif CK_EXPERIMENTAL_STATIC_TENSOR_DESCRIPTOR
 template <typename GridwiseGemm,
           typename FloatAB,
@@ -322,117 +182,10 @@ __global__ void
                        integral_constant<bool, HasMainE0BlockLoop>{});
 }
 
-template <typename GemmArguments1,
-          typename GemmArguments2,
-          typename FloatAB,
-          typename FloatC,
-          ActivTypeEnum_t ActivType>
-__global__ void
-#if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
-#endif
-        kernel_gemm_bias_activ_dlops_v4(const GemmArguments1 GemmArg1,
-                                        const GemmArguments2 GemmArg2,
-                                        const FloatAB* __restrict__ p_a_grid,
-                                        const FloatAB* __restrict__ p_b1_grid,
-                                        const FloatAB* __restrict__ p_b2_grid,
-                                        const FloatC* __restrict__ p_bias_global,
-                                        FloatC* __restrict__ p_c_grid)
-{
-    using GridwiseGemm1 = decltype(GemmArg1.gridwise_gemm_desc);
-    using GridwiseGemm2 = decltype(GemmArg2.gridwise_gemm_desc);
-
-    constexpr index_t shared_block_size =
-        GridwiseGemm1::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
-
-    __shared__ FloatAB p_shared_block[shared_block_size];
-
-    constexpr auto c_k1_n_h2_w2_thread_gemm_desc = GridwiseGemm1::MakeCK1NH2W2ThreadDescriptor();
-
-    constexpr auto HasMainE0BlockLoop = false;
-
-    // register allocation for output
-    StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                 float,
-                 c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
-                 true>
-        c_thread_buf;
-
-    static_for<0, c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(), 1>{}(
-        [&](auto i) { c_thread_buf(i) = 0; });
-
-    const auto c_k_n_h_w_block_cluster_idx = GridwiseGemm1::GetCBlockIndex(
-        GemmArg1.c_blockid_to_k_n_h_w_block_cluster_adaptor, get_block_1d_id());
-
-    const auto c_thread_mtx_index = GridwiseGemm1::GetCThreadIndex();
-
-    const auto a1_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_a_grid, GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-    const auto b1_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_b1_grid, GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-
-    const auto a2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_a_grid + GemmArg1.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize(),
-        GemmArg2.a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-
-    const auto b2_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_b2_grid, GemmArg2.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-
-    // GemmOp
-    GridwiseGemm1::GemmOp(a1_global_buf,
-                          b1_global_buf,
-                          c_thread_buf,
-                          p_shared_block,
-                          c_k_n_h_w_block_cluster_idx,
-                          c_thread_mtx_index,
-                          GemmArg1.a_e0_e1_k0_k1_e2_grid_desc,
-                          GemmArg1.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                          c_k1_n_h2_w2_thread_gemm_desc,
-                          integral_constant<bool, HasMainE0BlockLoop>{});
-
-    // GemmOp
-    GridwiseGemm2::GemmOp(a2_global_buf,
-                          b2_global_buf,
-                          c_thread_buf,
-                          p_shared_block,
-                          c_k_n_h_w_block_cluster_idx,
-                          c_thread_mtx_index,
-                          GemmArg2.a_e0_e1_k0_k1_e2_grid_desc,
-                          GemmArg2.b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                          c_k1_n_h2_w2_thread_gemm_desc,
-                          integral_constant<bool, HasMainE0BlockLoop>{});
-
-    const auto bias_k0_k1_grid_desc =
-        GridwiseGemm2::MakeBiasK0K1GridDescriptor(GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-
-    const auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
-
-    // Bias
-    GridwiseGemm2::BiasOp(bias_global_buf,
-                          c_thread_buf,
-                          c_k_n_h_w_block_cluster_idx,
-                          c_thread_mtx_index,
-                          bias_k0_k1_grid_desc,
-                          c_k1_n_h2_w2_thread_gemm_desc);
-
-    // Activ
-    static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
-
-    GridwiseGemm2::Activation(c_thread_buf, c_k1_n_h2_w2_thread_gemm_desc, activ_type);
-
-    auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-        p_c_grid, GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
-
-    GridwiseGemm2::WriteOut(c_thread_buf,
-                            c_global_buf,
-                            c_k_n_h_w_block_cluster_idx,
-                            c_thread_mtx_index,
-                            GemmArg1.c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-}
-
 template <typename GridwiseGemm,
           typename FloatAB,
+          typename FloatAcc,
+          typename FloatBias,
           typename FloatC,
           typename AGridDesc_E0_E1_K0_K1_E2,
           typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
@@ -446,8 +199,10 @@ __global__ void
 #endif
         kernel_gemm_bias_activ_dlops_v3(const FloatAB* __restrict__ p_a_grid,
                                         const FloatAB* __restrict__ p_b_grid,
-                                        const FloatC* __restrict__ p_bias_global,
-                                        FloatC* __restrict__ p_c_grid)
+                                        const FloatBias* __restrict__ p_bias_grid,
+                                        FloatC* __restrict__ p_c_grid,
+                                        float scaleGemm,
+                                        float scaleRelu)
 {
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);
@@ -466,7 +221,7 @@ __global__ void
 
     // register allocation for output
     StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                 float,
+                 FloatAcc,
                  c_k1_n_h2_w2_thread_gemm_desc.GetElementSpaceSize(),
                  true>
         c_thread_buf;
@@ -477,28 +232,51 @@ __global__ void
     const auto c_k_n_h_w_block_cluster_idx =
         GridwiseGemm::GetCBlockIndex(c_blockid_to_k_n_h_w_block_cluster_adaptor, get_block_1d_id());
 
-    GridwiseGemm::ConvBiasActivCReg(p_a_grid,
-                                    p_b_grid,
-                                    p_bias_global,
-                                    c_thread_buf,
-                                    p_shared_block,
-                                    a_e0_e1_k0_k1_e2_grid_desc,
-                                    b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-                                    c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-                                    c_k_n_h_w_block_cluster_idx,
-                                    integral_constant<bool, HasMainE0BlockLoop>{},
-                                    integral_constant<ActivTypeEnum_t, ActivType>{});
+    const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_a_grid, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
+    const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_b_grid, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
+
+    const auto c_thread_mtx_index = GridwiseGemm::GetCThreadIndex();
+
+    // GemmOp
+    GridwiseGemm::GemmOp(a_global_buf,
+                         b_global_buf,
+                         c_thread_buf,
+                         p_shared_block,
+                         c_k_n_h_w_block_cluster_idx,
+                         c_thread_mtx_index,
+                         a_e0_e1_k0_k1_e2_grid_desc,
+                         b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
+                         c_k1_n_h2_w2_thread_gemm_desc,
+                         integral_constant<bool, HasMainE0BlockLoop>{});
+
+    const auto bias_k0_k1_grid_desc =
+        GridwiseGemm::MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
+
+    const auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
+        p_bias_grid, bias_k0_k1_grid_desc.GetElementSpaceSize());
+
+    // Bias
+    GridwiseGemm::BiasOp(bias_global_buf,
+                         c_thread_buf,
+                         c_k_n_h_w_block_cluster_idx,
+                         c_thread_mtx_index,
+                         bias_k0_k1_grid_desc,
+                         c_k1_n_h2_w2_thread_gemm_desc);
 
     auto c_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
         p_c_grid, c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.GetElementSpaceSize());
 
-    const auto c_thread_mtx_index = GridwiseGemm::GetCThreadIndex();
-
-    GridwiseGemm::WriteOut(c_thread_buf,
-                           c_global_buf,
-                           c_k_n_h_w_block_cluster_idx,
-                           c_thread_mtx_index,
-                           c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
+    GridwiseGemm::WriteOut(
+        c_thread_buf,
+        c_global_buf,
+        c_k_n_h_w_block_cluster_idx,
+        c_thread_mtx_index,
+        c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+        ck::tensor_operation::element_wise::RequantReluRequant{scaleGemm, scaleRelu}
+        // ck::tensor_operation::element_wise::PassThrough{}
+    );
 }
 
 template <typename GridwiseGemm,
@@ -625,6 +403,7 @@ __global__ void
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
+          typename FloatBias,
           typename FloatC,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           typename AGridDesc_E0_E1_K_E2,
@@ -1027,7 +806,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
 
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
-                     FloatC,
+                     FloatBias,
                      bias_k0_k1_thread_desc.GetElementSpaceSize(),
                      true>
             bias_thread_buf;
@@ -1035,8 +814,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         const index_t k_thread_data_on_global = k_thread_id * KPerThread;
 
         auto bias_threadwise_transfer =
-            ThreadwiseTensorSliceTransfer_v2<FloatC,
-                                             FloatC,
+            ThreadwiseTensorSliceTransfer_v2<FloatBias,
+                                             FloatBias,
                                              decltype(bias_k0_k1_grid_desc),
                                              decltype(bias_k0_k1_thread_desc),
                                              Sequence<I1, Number<KPerThread>{}>,
@@ -1101,13 +880,15 @@ struct GridwiseGemmDlops_km_kn_mn_v3
               typename CGlobalBuff,
               typename CBlockIndex,
               typename CThreadIndex,
-              typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2>
+              typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
+              typename CElementWiseOp>
     __device__ static void
     WriteOut(const CThreadBuff& c_thread_buf,
              CGlobalBuff& c_global_buf,
              const CBlockIndex& c_block_idx,
              const CThreadIndex& c_thread_idx,
-             const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc)
+             const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
+             const CElementWiseOp c_element_wise_op)
     {
         const index_t k_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I0]);
         const index_t n_block_work_id  = __builtin_amdgcn_readfirstlane(c_block_idx[I1]);
@@ -1136,7 +917,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
             FloatC,
             decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc),
             decltype(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc),
-            ck::tensor_operation::element_wise::PassThrough,
+            CElementWiseOp,
             Sequence<I1, KPerThread, I1, I1, I1, HoPerThread, I1, I1, WoPerThread>,
             CThreadTransferSrcDstAccessOrder,
             CThreadTransferSrcDstVectorDim,
@@ -1153,7 +934,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                    wo_block_work_id,
                                    wo_thread_id,
                                    0),
-                  ck::tensor_operation::element_wise::PassThrough{})
+                  c_element_wise_op)
             .Run(c_k0_k1_n_h0_h1_h2_w0_w1_w2_thread_copy_desc,
                  make_tuple(I0, I0, I0, I0, I0, I0, I0, I0, I0),
                  c_thread_buf,
@@ -2269,75 +2050,6 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                  c_k_n_h_w_block_cluster_idx,
                  c_thread_mtx_index,
                  c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-    }
-
-    template <typename CThreadBuff,
-              typename AGridDesc_E0_E1_K0_K1_E2,
-              typename BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2,
-              typename CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2,
-              typename CBlockClusterIdx_K_N_H_W,
-              bool HasMainE0BlockLoop,
-              ActivTypeEnum_t ActivType>
-    __device__ static void ConvBiasActivCReg(
-        const FloatAB* __restrict__ p_a_global,
-        const FloatAB* __restrict__ p_b_global,
-        const FloatC* __restrict__ p_bias_global,
-        CThreadBuff& c_thread_buf,
-        FloatAB* __restrict__ p_shared_block,
-        const AGridDesc_E0_E1_K0_K1_E2& a_e0_e1_k0_k1_e2_grid_desc,
-        const BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2& b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-        const CGridDesc_K0_K1_N_H0_H1_H2_W0_W1_W2& c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc,
-        const CBlockClusterIdx_K_N_H_W c_k_n_h_w_block_cluster_idx,
-        integral_constant<bool, HasMainE0BlockLoop>,
-        integral_constant<ActivTypeEnum_t, ActivType>)
-    {
-        static constexpr auto activ_type = integral_constant<ActivTypeEnum_t, ActivType>{};
-
-        const auto bias_k0_k1_grid_desc =
-            MakeBiasK0K1GridDescriptor(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
-
-        const auto a_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_a_global, a_e0_e1_k0_k1_e2_grid_desc.GetElementSpaceSize());
-        const auto b_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_b_global, b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc.GetElementSpaceSize());
-        const auto bias_global_buf = make_dynamic_buffer<AddressSpaceEnum_t::Global>(
-            p_bias_global, bias_k0_k1_grid_desc.GetElementSpaceSize());
-
-        constexpr auto c_k1_n_h2_w2_thread_gemm_desc = MakeCK1NH2W2ThreadDescriptor();
-
-        // const index_t block_id = get_block_1d_id();
-
-        const auto c_thread_mtx_index = GetCThreadIndex();
-
-        // GemmOp
-        GemmOp(a_global_buf,
-               b_global_buf,
-               c_thread_buf,
-               p_shared_block,
-               c_k_n_h_w_block_cluster_idx,
-               c_thread_mtx_index,
-               a_e0_e1_k0_k1_e2_grid_desc,
-               b_e0_e1_n_h0_h1_h2_w0_w1_w2_e2_grid_desc,
-               c_k1_n_h2_w2_thread_gemm_desc,
-               integral_constant<bool, HasMainE0BlockLoop>{});
-
-        // Bias
-        BiasOp(bias_global_buf,
-               c_thread_buf,
-               c_k_n_h_w_block_cluster_idx,
-               c_thread_mtx_index,
-               bias_k0_k1_grid_desc,
-               c_k1_n_h2_w2_thread_gemm_desc);
-
-        // Activ
-        Activation(c_thread_buf, c_k1_n_h2_w2_thread_gemm_desc, activ_type);
-
-        // Output
-        // WriteOut(c_thread_buf,
-        // c_global_buf,
-        // c_k_n_h_w_block_cluster_idx,
-        // c_thread_mtx_index,
-        // c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc);
     }
 
     template <typename CThreadBuff,

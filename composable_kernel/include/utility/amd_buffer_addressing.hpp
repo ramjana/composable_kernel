@@ -267,7 +267,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, ushort>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
-            (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
@@ -420,6 +420,33 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
                                                   src_wave_addr_offset + 4 * sizeof(int32_t),
                                                   0);
             return tmp.AsType<int32x8_t>()(Number<0>{});
+        }
+        else if constexpr(N == 16)
+        {
+            vector_type<int32_t, 16> tmp;
+
+            tmp.AsType<int32x4_t>()(Number<0>{}) = llvm_amdgcn_raw_buffer_load_i32x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+
+            tmp.AsType<int32x4_t>()(Number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset + 4 * sizeof(int32_t),
+                                                  0);
+
+            tmp.AsType<int32x4_t>()(Number<2>{}) =
+                llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset + 8 * sizeof(int32_t),
+                                                  0);
+
+            tmp.AsType<int32x4_t>()(Number<3>{}) =
+                llvm_amdgcn_raw_buffer_load_i32x4(src_wave_buffer_resource,
+                                                  src_thread_addr_offset,
+                                                  src_wave_addr_offset + 12 * sizeof(int32_t),
+                                                  0);
+
+            return tmp.AsType<int32x16_t>()(Number<0>{});
         }
     }
     else if constexpr(is_same<T, int8_t>::value)

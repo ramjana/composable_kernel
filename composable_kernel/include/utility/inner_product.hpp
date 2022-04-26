@@ -207,6 +207,7 @@ inner_product<int8x16_t, int8x16_t, int32_t>(const int8x16_t& a, const int8x16_t
     constexpr auto I2 = Number<2>{};
     constexpr auto I3 = Number<3>{};
 
+#if 1
     inner_product(vector_type<int8_t, 16>{a}.AsType<int8x4_t>()[I0],
                   vector_type<int8_t, 16>{b}.AsType<int8x4_t>()[I0],
                   c);
@@ -222,6 +223,28 @@ inner_product<int8x16_t, int8x16_t, int32_t>(const int8x16_t& a, const int8x16_t
     inner_product(vector_type<int8_t, 16>{a}.AsType<int8x4_t>()[I3],
                   vector_type<int8_t, 16>{b}.AsType<int8x4_t>()[I3],
                   c);
+
+#else
+    const auto a_vec = vector_type<int8_t, 16>{a};
+    const auto b_vec = vector_type<int8_t, 16>{b};
+
+    asm volatile("\n \
+            v_dot4_i32_i8 %0, %1, %5, %0\n \
+            v_dot4_i32_i8 %0, %2, %6, %0\n \
+            v_dot4_i32_i8 %0, %3, %7, %0\n \
+            v_dot4_i32_i8 %0, %4, %8, %0\n \
+            "
+                 : "=v"(c)
+                 : "v"(bit_cast<int32_t>(a_vec.AsType<int8x4_t>()[I0])),
+                   "v"(bit_cast<int32_t>(a_vec.AsType<int8x4_t>()[I1])),
+                   "v"(bit_cast<int32_t>(a_vec.AsType<int8x4_t>()[I2])),
+                   "v"(bit_cast<int32_t>(a_vec.AsType<int8x4_t>()[I3])),
+                   "v"(bit_cast<int32_t>(b_vec.AsType<int8x4_t>()[I0])),
+                   "v"(bit_cast<int32_t>(b_vec.AsType<int8x4_t>()[I1])),
+                   "v"(bit_cast<int32_t>(b_vec.AsType<int8x4_t>()[I2])),
+                   "v"(bit_cast<int32_t>(b_vec.AsType<int8x4_t>()[I3])),
+                   "0"(c));
+#endif
 }
 
 } // namespace ck
