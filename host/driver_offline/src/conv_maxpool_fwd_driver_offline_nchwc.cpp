@@ -23,6 +23,11 @@ enum ConvForwardAlgo
     V5R1NCHWC // 0
 };
 
+struct Relu
+{
+    float operator()(const float& x) const { return x > 0 ? x : 0; }
+};
+
 template <typename TIn,
           typename TWei,
           typename TBias,
@@ -32,23 +37,23 @@ template <typename TIn,
           typename InLeftPads,
           typename InRightPads,
           typename CElementwiseOp>
-void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
-                                           const Tensor<TWei>& wei,
-                                           const Tensor<TBias>& bias,
-                                           Tensor<TOut>& out_host,
-                                           Tensor<TOut>& max_host,
-                                           const ConvStrides& conv_strides,
-                                           const ConvDilations& conv_dilations,
-                                           const InLeftPads& in_left_pads,
-                                           const InRightPads&,
-                                           const CElementwiseOp c_elementwise_op)
+void host_direct_convolution_maxpool2x2_nchwc(const Tensor<TIn>& in,
+                                              const Tensor<TWei>& wei,
+                                              const Tensor<TBias>& bias,
+                                              Tensor<TOut>& out_host,
+                                              Tensor<TOut>& max_host,
+                                              const ConvStrides& conv_strides,
+                                              const ConvDilations& conv_dilations,
+                                              const InLeftPads& in_left_pads,
+                                              const InRightPads&,
+                                              const CElementwiseOp c_elementwise_op = Relu{})
 {
     using namespace ck;
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
 
-    auto f_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
+    auto conv_nchwc = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
         float v = 0;
         auto k  = k0 * out_host.mDesc.GetLengths()[4] + k1;
 
@@ -65,8 +70,8 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
                     {
                         for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
-                            v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(wei(k, c0, y, x, c1));
+                            v += static_cast<const float>(in(n, c0, hi, wi, c1)) *
+                                 static_cast<const float>(wei(k, c0, y, x, c1));
                         }
                     }
                 }
@@ -74,17 +79,17 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
         }
 
         v += bias(k0, k1);
-        out_host(n, k0, ho, wo, k1) = c_elementwise_op(v);
+        out_host(n, k0, ho, wo, k1) = static_cast<TOut>(c_elementwise_op(v));
     };
 
-    make_ParallelTensorFunctor(f_nchw,
+    make_ParallelTensorFunctor(conv_nchwc,
                                out_host.mDesc.GetLengths()[0],
                                out_host.mDesc.GetLengths()[1],
                                out_host.mDesc.GetLengths()[2],
                                out_host.mDesc.GetLengths()[3],
                                out_host.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
 
-    auto maxpool_nchw = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
+    auto maxpool2x2_nchwc = [&](auto n, auto k0, auto ho, auto wo, auto k1) {
         auto hx = ho * 2;
         auto wx = wo * 2;
 
@@ -96,7 +101,7 @@ void host_direct_convolution_maxpool_nchwc(const Tensor<TIn>& in,
         max_host(n, k0, ho, wo, k1) = std::max({v0, v1, v2, v3});
     };
 
-    make_ParallelTensorFunctor(maxpool_nchw,
+    make_ParallelTensorFunctor(maxpool2x2_nchwc,
                                max_host.mDesc.GetLengths()[0],
                                max_host.mDesc.GetLengths()[1],
                                max_host.mDesc.GetLengths()[2],
@@ -160,8 +165,8 @@ int main(int argc, char* argv[])
     const index_t Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + 1;
     const index_t Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
 
-    const index_t Ho_2 = Ho / 2;
-    const index_t Wo_2 = Wo / 2;
+    const index_t HoMax = Ho / 2;
+    const index_t WoMax = Wo / 2;
 #else
     // static mode
     if(argc < 6)
@@ -229,8 +234,8 @@ int main(int argc, char* argv[])
     constexpr auto Ho = (Hi + in_left_pad_h + in_right_pad_h - YEff) / conv_stride_h + I1;
     constexpr auto Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + I1;
 
-    constexpr auto Ho_2 = Number<Ho / 2>{};
-    constexpr auto Wo_2 = Number<Wo / 2>{};
+    constexpr auto HoMax = Number<Ho / 2>{};
+    constexpr auto WoMax = Number<Wo / 2>{};
 
 #endif
 
@@ -238,10 +243,11 @@ int main(int argc, char* argv[])
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
-#elif 0
-    using in_data_t     = half_t;
-    using acc_data_t    = float;
-    using out_data_t    = half_t;
+#elif 1
+    using in_data_t      = half_t;
+    using acc_data_t     = float;
+    using bias_data_t    = half_t;
+    using out_data_t     = half_t;
 #elif 1
     using in_data_t   = int8_t;
     using acc_data_t  = int32_t;
@@ -272,8 +278,8 @@ int main(int argc, char* argv[])
 
     max_lengths_host[0] = static_cast<std::size_t>(N);
     max_lengths_host[1] = static_cast<std::size_t>(K0);
-    max_lengths_host[2] = static_cast<std::size_t>(Ho_2);
-    max_lengths_host[3] = static_cast<std::size_t>(Wo_2);
+    max_lengths_host[2] = static_cast<std::size_t>(HoMax);
+    max_lengths_host[3] = static_cast<std::size_t>(WoMax);
     max_lengths_host[4] = static_cast<std::size_t>(K1);
 
     bias_lengths_host[0] = static_cast<std::size_t>(K0);
@@ -336,8 +342,8 @@ int main(int argc, char* argv[])
     auto f_make_for_device_nchwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
         const auto wei_lengths_dev    = make_tuple(K0 * K1, C0, Y, X, C1);
-        const auto max_lengths_dev    = make_tuple(N, K0, Ho_2, Wo_2, K1);
         const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
+        const auto max_lengths_dev    = make_tuple(N, K0, HoMax, WoMax, K1);
         const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
         const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
         const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
@@ -382,17 +388,16 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution_maxpool_nchwc(
-            in,
-            wei,
-            bias,
-            out_host,
-            max_host,
-            make_tuple(conv_stride_h, conv_stride_w),
-            make_tuple(conv_dilation_h, conv_dilation_w),
-            make_tuple(in_left_pad_h, in_left_pad_w),
-            make_tuple(in_right_pad_h, in_right_pad_w),
-            ck::tensor_operation::element_wise::RequantReluRequant{0.3, 1.0});
+        host_direct_convolution_maxpool2x2_nchwc(in,
+                                                 wei,
+                                                 bias,
+                                                 out_host,
+                                                 max_host,
+                                                 make_tuple(conv_stride_h, conv_stride_w),
+                                                 make_tuple(conv_dilation_h, conv_dilation_w),
+                                                 make_tuple(in_left_pad_h, in_left_pad_w),
+                                                 make_tuple(in_right_pad_h, in_right_pad_w),
+                                                 Relu{});
 
         check_error(out_host, out_device);
         check_error(max_host, max_device);

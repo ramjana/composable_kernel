@@ -98,6 +98,16 @@ struct AddReluAdd
     }
 };
 
+struct Relu
+{
+    //__host__ __device__ constexpr float operator()(const float& x) const { return x > 0 ? x : 0; }
+    template <typename X>
+    __host__ __device__ constexpr half_t operator()(const X& x) const
+    {
+        return x > 0 ? x : 0;
+    }
+};
+
 struct RequantReluRequant
 {
     // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
