@@ -199,6 +199,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             FloatAB,
             FloatAcc,
             FloatC,
+            FloatC,
             InMemoryDataOperationEnum_t::Set,
             decltype(a_e0_e1_k_e2_grid_desc),
             decltype(b_e0_e1_n_ho_wo_e2_grid_desc),
@@ -350,6 +351,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                 const auto kernel =
                     kernel_gemm_dlops_v3<GridwiseGemm,
                                          FloatAB,
+                                         FloatAcc,
                                          FloatC,
                                          remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
                                          remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,

@@ -75,7 +75,7 @@ fi
 
 make -j $op
 
-./host/driver_offline/$op 0 1 4 0 5 2>&1 | tee tmp_log
+./host/driver_offline/$op 0 1 4 0 20 2>&1 | tee tmp_log
 
 kernel=`sed -n -e '/^input/p' tmp_log`
 tparm=`sed -n -e '/^BlockSize/p' tmp_log`
