@@ -244,6 +244,7 @@ struct DeviceReduceBlockWise : public DeviceReduce<InElementwiseOperation, AccEl
 
             const auto kernel = kernel_reduce_blockwise<GridwiseReduce,
                                                         NeedIndices,
+                                                        false, // Don't have index input
                                                         InDataType,
                                                         OutDataType,
                                                         AccDataType,

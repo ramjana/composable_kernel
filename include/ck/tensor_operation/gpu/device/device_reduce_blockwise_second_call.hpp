@@ -207,16 +207,18 @@ struct DeviceReduceBlockWiseSecondCall
 
             float avg_time = 0;
 
-            const auto kernel = kernel_reduce_blockwise_second_call<GridwiseReduce,
-                                                                    NeedIndices,
-                                                                    AccDataType,
-                                                                    OutDataType,
-                                                                    AccDataType,
-                                                                    IndexDataType,
-                                                                    InGridDesc_M_K,
-                                                                    OutGridDesc_M,
-                                                                    InElementwiseOperation,
-                                                                    AccElementwiseOperation>;
+            const auto kernel =
+                kernel_reduce_blockwise<GridwiseReduce,
+                                        NeedIndices,
+                                        true, // Have index input if indices are needed
+                                        AccDataType,
+                                        OutDataType,
+                                        AccDataType,
+                                        IndexDataType,
+                                        InGridDesc_M_K,
+                                        OutGridDesc_M,
+                                        InElementwiseOperation,
+                                        AccElementwiseOperation>;
 
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,

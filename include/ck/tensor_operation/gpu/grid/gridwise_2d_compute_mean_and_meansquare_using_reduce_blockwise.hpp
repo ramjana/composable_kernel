@@ -52,29 +52,27 @@ __global__ void kernel_compute_mean_and_meansquare_using_reduction_blockwise(
     AccDataType* const __restrict__ resultSaveMean,
     AccDataType* const __restrict__ resultSaveMeanSquare)
 {
-    constexpr bool IsSecondCall = false;
+    GridwiseReduceMean::Run(in_out_grid_desc_m_k,
+                            scale_bias_mean_var_grid_desc_m,
+                            in_element_wise_op_mean,
+                            acc_element_wise_op_mean,
+                            type_convert<AccDataType>(1.0f),
+                            p_in_global,
+                            nullptr,
+                            type_convert<AccDataType>(0.0f),
+                            resultSaveMean,
+                            nullptr);
 
-    GridwiseReduceMean::template Run<IsSecondCall>(in_out_grid_desc_m_k,
-                                                   scale_bias_mean_var_grid_desc_m,
-                                                   in_element_wise_op_mean,
-                                                   acc_element_wise_op_mean,
-                                                   type_convert<AccDataType>(1.0f),
-                                                   p_in_global,
-                                                   type_convert<AccDataType>(0.0f),
-                                                   resultSaveMean,
-                                                   nullptr,
-                                                   nullptr);
-
-    GridwiseReduceMeanSquare::template Run<IsSecondCall>(in_out_grid_desc_m_k,
-                                                         scale_bias_mean_var_grid_desc_m,
-                                                         in_element_wise_op_meansquare,
-                                                         acc_element_wise_op_meansquare,
-                                                         type_convert<AccDataType>(1.0f),
-                                                         p_in_global,
-                                                         type_convert<AccDataType>(0.0f),
-                                                         resultSaveMeanSquare,
-                                                         nullptr,
-                                                         nullptr);
+    GridwiseReduceMeanSquare::Run(in_out_grid_desc_m_k,
+                                  scale_bias_mean_var_grid_desc_m,
+                                  in_element_wise_op_meansquare,
+                                  acc_element_wise_op_meansquare,
+                                  type_convert<AccDataType>(1.0f),
+                                  p_in_global,
+                                  nullptr,
+                                  type_convert<AccDataType>(0.0f),
+                                  resultSaveMeanSquare,
+                                  nullptr);
 };
 
 } // namespace ck
