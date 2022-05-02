@@ -25,6 +25,7 @@ enum ConvForwardAlgo
 template <typename TIn,
           typename TWei,
           typename TBias,
+          typename TScale,
           typename TOut,
           typename ConvStrides,
           typename ConvDilations,
@@ -34,6 +35,7 @@ template <typename TIn,
 void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
                                        const Tensor<TWei>& wei,
                                        const Tensor<TBias>& bias,
+                                       const Tensor<TScale>& scale,
                                        Tensor<TOut>& out_host,
                                        Tensor<TOut>& add_host,
                                        const ConvStrides& conv_strides,
@@ -74,7 +76,9 @@ void host_direct_convolution_add_nchwc(const Tensor<TIn>& in,
         }
 
         v += bias(k0, k1);
-        auto vv = c_elementwise_op(v);
+        // auto vv = c_elementwise_op(v);
+        const auto c_elementwise_op_ = CElementwiseOp{scale(k0, k1)};
+        auto vv                      = c_elementwise_op_(v);
 
         const int hox2 = ho * 2;
         const int wox2 = wo * 2;
@@ -232,10 +236,11 @@ int main(int argc, char* argv[])
     using acc_data_t    = float;
     using out_data_t    = half_t;
 #elif 1
-    using in_data_t   = int8_t;
-    using acc_data_t  = int32_t;
-    using bias_data_t = int32_t;
-    using out_data_t  = int8_t;
+    using in_data_t    = int8_t;
+    using acc_data_t   = int32_t;
+    using bias_data_t  = int32_t;
+    using scale_data_t = float;
+    using out_data_t   = int8_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
@@ -274,6 +279,7 @@ int main(int argc, char* argv[])
     Tensor<in_data_t> add_device(add_lengths_host);
     Tensor<in_data_t> add_host(add_lengths_host);
     Tensor<bias_data_t> bias(bias_lengths_host);
+    Tensor<scale_data_t> scale(bias_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
 
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
@@ -322,7 +328,7 @@ int main(int argc, char* argv[])
     }
 
     bias.GenerateTensorValue(GeneratorTensor_2<bias_data_t>{-5, 5}, num_thread);
-    // add.GenerateTensorValue(GeneratorTensor_1<out_data_t>{}, num_thread);
+    scale.GenerateTensorValue(GeneratorTensor_3<scale_data_t>{0.1, 0.8}, num_thread);
 
     auto f_make_for_device_nchwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
@@ -349,41 +355,43 @@ int main(int argc, char* argv[])
     {
         const auto tmp = f_make_for_device_nchwc();
 
-        device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<in_data_t,
-                                                                                        acc_data_t,
-                                                                                        bias_data_t,
-                                                                                        out_data_t,
-                                                                                        activ_type>(
-            tmp[I0], // in_lengths_dev
-            tmp[I1], // wei_lengths_dev
-            tmp[I2], // add_lengths_dev
-            tmp[I3], // out_lengths_dev
-            tmp[I4], // conv_strides_dev
-            tmp[I5], // conv_dilations_dev
-            tmp[I6], // in_left_pads_dev
-            tmp[I7], // in_right_pads_dev
-            in,
-            wei,
-            bias,
-            add,
-            add_device,
-            nrepeat);
+        device_convolution_add_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
+            in_data_t,
+            acc_data_t,
+            bias_data_t,
+            scale_data_t,
+            out_data_t,
+            activ_type>(tmp[I0], // in_lengths_dev
+                        tmp[I1], // wei_lengths_dev
+                        tmp[I2], // add_lengths_dev
+                        tmp[I3], // out_lengths_dev
+                        tmp[I4], // conv_strides_dev
+                        tmp[I5], // conv_dilations_dev
+                        tmp[I6], // in_left_pads_dev
+                        tmp[I7], // in_right_pads_dev
+                        in,
+                        wei,
+                        bias,
+                        scale,
+                        add,
+                        add_device,
+                        nrepeat);
     }
 #endif
 
     if(do_verification)
     {
-        host_direct_convolution_add_nchwc(
-            in,
-            wei,
-            bias,
-            out_host,
-            add_host,
-            make_tuple(conv_stride_h, conv_stride_w),
-            make_tuple(conv_dilation_h, conv_dilation_w),
-            make_tuple(in_left_pad_h, in_left_pad_w),
-            make_tuple(in_right_pad_h, in_right_pad_w),
-            ck::tensor_operation::element_wise::RequantReluRequant{0.3, 1.0});
+        host_direct_convolution_add_nchwc(in,
+                                          wei,
+                                          bias,
+                                          scale,
+                                          out_host,
+                                          add_host,
+                                          make_tuple(conv_stride_h, conv_stride_w),
+                                          make_tuple(conv_dilation_h, conv_dilation_w),
+                                          make_tuple(in_left_pad_h, in_left_pad_w),
+                                          make_tuple(in_right_pad_h, in_right_pad_w),
+                                          ck::tensor_operation::element_wise::HardTanhQuant{0.3});
 
         check_error(add_host, add_device);
 

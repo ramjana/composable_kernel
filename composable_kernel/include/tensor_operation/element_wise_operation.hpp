@@ -108,19 +108,45 @@ struct Relu
     }
 };
 
-struct RequantReluRequant
+struct HardTanhQuant
 {
     // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
-    __host__ __device__ RequantReluRequant(float scaleGemm, float scaleRelu)
-        : scaleGemm_(scaleGemm), scaleRelu_(scaleRelu)
-    {
-    }
+    __host__ __device__ HardTanhQuant(float scaleRelu) : scale_(scaleRelu) {}
 
     __host__ __device__ constexpr int8_t operator()(const int32_t& x) const
     {
-        float gemm_requant = scaleGemm_ * static_cast<float>(x);
-        float relu         = gemm_requant > 0 ? gemm_requant : 0;
-        float relu_requant = scaleRelu_ * relu;
+        float gemm_c_float = static_cast<float>(x);
+        float hard_tanh    = gemm_c_float > 1 ? 1 : (gemm_c_float < -1 ? -1 : gemm_c_float);
+        float tanh_requant = scale_ * hard_tanh;
+        int8_t y           = static_cast<int8_t>(
+            tanh_requant > 127 ? 127 : tanh_requant < -128 ? -128 : tanh_requant);
+        return y;
+    }
+
+    // for reference_gemm
+    __host__ __device__ constexpr float operator()(const float& x) const
+    {
+        float gemm_c_float = x;
+        float hard_tanh    = gemm_c_float > 1 ? 1 : (gemm_c_float < -1 ? -1 : gemm_c_float);
+        float tanh_requant = scale_ * hard_tanh;
+        float y            = static_cast<float>(
+            tanh_requant > 127 ? 127 : tanh_requant < -128 ? -128 : tanh_requant);
+        return y;
+    }
+
+    float scale_;
+};
+
+struct ReluQuant
+{
+    // FIXME: We just need one scale for Relu / Leaky Relu / PRelu
+    __host__ __device__ ReluQuant(float scaleRelu) : scale_(scaleRelu) {}
+
+    __host__ __device__ constexpr int8_t operator()(const int32_t& x) const
+    {
+        float gemm_c_float = static_cast<float>(x);
+        float relu         = gemm_c_float > 0 ? gemm_c_float : 0;
+        float relu_requant = scale_ * relu;
         int8_t y           = static_cast<int8_t>(
             relu_requant > 127 ? 127 : relu_requant < -128 ? -128 : relu_requant);
         return y;
@@ -129,16 +155,15 @@ struct RequantReluRequant
     // for reference_gemm
     __host__ __device__ constexpr float operator()(const float& x) const
     {
-        float gemm_requant = scaleGemm_ * x;
-        float relu         = gemm_requant > 0 ? gemm_requant : 0;
-        float relu_requant = scaleRelu_ * relu;
+        float gemm_c_float = x;
+        float relu         = gemm_c_float > 0 ? gemm_c_float : 0;
+        float relu_requant = scale_ * relu;
         float y            = static_cast<float>(
             relu_requant > 127 ? 127 : relu_requant < -128 ? -128 : relu_requant);
         return y;
     }
 
-    float scaleGemm_;
-    float scaleRelu_;
+    float scale_;
 };
 
 } // namespace element_wise

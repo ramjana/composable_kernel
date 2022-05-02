@@ -264,7 +264,7 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
 {
     static_assert(
         (is_same<T, double>::value && (N == 1 || N == 2 || N == 4)) ||
-            (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
+            (is_same<T, float>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, half_t>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, ushort>::value && (N == 1 || N == 2 || N == 4 || N == 8)) ||
             (is_same<T, int32_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
@@ -337,6 +337,33 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
                                                    0);
 
             return tmp.AsType<float8_t>()(Number<0>{});
+        }
+        else if constexpr(N == 16)
+        {
+            vector_type<float, 16> tmp;
+
+            tmp.AsType<float4_t>()(Number<0>{}) = llvm_amdgcn_raw_buffer_load_fp32x4(
+                src_wave_buffer_resource, src_thread_addr_offset, src_wave_addr_offset, 0);
+
+            tmp.AsType<float4_t>()(Number<1>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 4 * sizeof(float),
+                                                   0);
+
+            tmp.AsType<float4_t>()(Number<2>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 8 * sizeof(float),
+                                                   0);
+
+            tmp.AsType<float4_t>()(Number<3>{}) =
+                llvm_amdgcn_raw_buffer_load_fp32x4(src_wave_buffer_resource,
+                                                   src_thread_addr_offset,
+                                                   src_wave_addr_offset + 12 * sizeof(float),
+                                                   0);
+
+            return tmp.AsType<float16_t>()(Number<0>{});
         }
     }
     else if constexpr(is_same<T, half_t>::value)

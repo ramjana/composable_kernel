@@ -26,6 +26,7 @@ enum ConvForwardAlgo
 template <typename TIn,
           typename TWei,
           typename TBias,
+          typename TScale,
           typename TOut,
           typename ConvStrides,
           typename ConvDilations,
@@ -35,6 +36,7 @@ template <typename TIn,
 void host_direct_convolution_nchwc(const Tensor<TIn>& in,
                                    const Tensor<TWei>& wei,
                                    const Tensor<TBias>& bias,
+                                   const Tensor<TScale>& scale,
                                    Tensor<TOut>& out,
                                    const ConvStrides& conv_strides,
                                    const ConvDilations& conv_dilations,
@@ -72,8 +74,9 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
             }
         }
         v += bias(k0, k1);
-        out(n, k0, ho, wo, k1) = c_elementwise_op(v);
-        // out(n, k0, ho, wo, k1) = v;
+        // out(n, k0, ho, wo, k1) = c_elementwise_op(v);
+        const auto c_elementwise_op_ = CElementwiseOp{scale(k0, k1)};
+        out(n, k0, ho, wo, k1)       = c_elementwise_op_(v);
     };
 
     make_ParallelTensorFunctor(f_nchw,
@@ -217,10 +220,11 @@ int main(int argc, char* argv[])
     using acc_data_t  = float;
     using out_data_t  = half_t;
 #elif 1
-    using in_data_t   = int8_t;
-    using bias_data_t = int32_t;
-    using acc_data_t  = int32_t;
-    using out_data_t  = int8_t;
+    using in_data_t    = int8_t;
+    using bias_data_t  = int32_t;
+    using scale_data_t = float;
+    using acc_data_t   = int32_t;
+    using out_data_t   = int8_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
@@ -250,12 +254,14 @@ int main(int argc, char* argv[])
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
     Tensor<bias_data_t> bias(bias_lengths_host);
+    Tensor<scale_data_t> scale(bias_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
 
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
     ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
     ostream_HostTensorDescriptor(bias.mDesc, std::cout << "bias: ");
+    ostream_HostTensorDescriptor(scale.mDesc, std::cout << "scale: ");
     ostream_HostTensorDescriptor(out_host.mDesc, std::cout << "out: ");
 
     print_array("InLeftPads", make_tuple(in_left_pad_h, in_left_pad_w));
@@ -300,6 +306,7 @@ int main(int argc, char* argv[])
     }
 
     bias.GenerateTensorValue(GeneratorTensor_2<bias_data_t>{-5, 5}, num_thread);
+    scale.GenerateTensorValue(GeneratorTensor_3<scale_data_t>{0.1, 0.8}, num_thread);
 
     auto f_make_for_device_nchwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
@@ -328,6 +335,7 @@ int main(int argc, char* argv[])
             in_data_t,
             acc_data_t,
             bias_data_t,
+            scale_data_t,
             out_data_t,
             activ_type>(tmp[I0],
                         tmp[I1],
@@ -339,6 +347,7 @@ int main(int argc, char* argv[])
                         in,
                         wei,
                         bias,
+                        scale,
                         out_device,
                         nrepeat);
     }
@@ -346,16 +355,16 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution_nchwc(
-            in,
-            wei,
-            bias,
-            out_host,
-            make_tuple(conv_stride_h, conv_stride_w),
-            make_tuple(conv_dilation_h, conv_dilation_w),
-            make_tuple(in_left_pad_h, in_left_pad_w),
-            make_tuple(in_right_pad_h, in_right_pad_w),
-            ck::tensor_operation::element_wise::RequantReluRequant{0.3, 1.0});
+        host_direct_convolution_nchwc(in,
+                                      wei,
+                                      bias,
+                                      scale,
+                                      out_host,
+                                      make_tuple(conv_stride_h, conv_stride_w),
+                                      make_tuple(conv_dilation_h, conv_dilation_w),
+                                      make_tuple(in_left_pad_h, in_left_pad_w),
+                                      make_tuple(in_right_pad_h, in_right_pad_w),
+                                      ck::tensor_operation::element_wise::HardTanhQuant{0.3});
 
         check_error(out_host, out_device);
 

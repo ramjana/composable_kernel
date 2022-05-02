@@ -23,14 +23,10 @@ enum ConvForwardAlgo
     V5R1NCHWC // 0
 };
 
-struct Relu
-{
-    float operator()(const float& x) const { return x > 0 ? x : 0; }
-};
-
 template <typename TIn,
           typename TWei,
           typename TBias,
+          typename TScale,
           typename TOut,
           typename ConvStrides,
           typename ConvDilations,
@@ -40,13 +36,14 @@ template <typename TIn,
 void host_direct_convolution_maxpool2x2_nchwc(const Tensor<TIn>& in,
                                               const Tensor<TWei>& wei,
                                               const Tensor<TBias>& bias,
+                                              const Tensor<TScale>& scale,
                                               Tensor<TOut>& out_host,
                                               Tensor<TOut>& max_host,
                                               const ConvStrides& conv_strides,
                                               const ConvDilations& conv_dilations,
                                               const InLeftPads& in_left_pads,
                                               const InRightPads&,
-                                              const CElementwiseOp c_elementwise_op = Relu{})
+                                              const CElementwiseOp c_elementwise_op)
 {
     using namespace ck;
 
@@ -79,7 +76,9 @@ void host_direct_convolution_maxpool2x2_nchwc(const Tensor<TIn>& in,
         }
 
         v += bias(k0, k1);
-        out_host(n, k0, ho, wo, k1) = static_cast<TOut>(c_elementwise_op(v));
+        // out_host(n, k0, ho, wo, k1) = static_cast<TOut>(c_elementwise_op(v));
+        const auto c_elementwise_op_ = CElementwiseOp{scale(k0, k1)};
+        out_host(n, k0, ho, wo, k1)  = c_elementwise_op_(v);
     };
 
     make_ParallelTensorFunctor(conv_nchwc,
@@ -243,16 +242,17 @@ int main(int argc, char* argv[])
     using in_data_t  = float;
     using acc_data_t = float;
     using out_data_t = float;
-#elif 1
+#elif 0
     using in_data_t      = half_t;
     using acc_data_t     = float;
     using bias_data_t    = half_t;
     using out_data_t     = half_t;
 #elif 1
-    using in_data_t   = int8_t;
-    using acc_data_t  = int32_t;
-    using bias_data_t = int32_t;
-    using out_data_t  = int8_t;
+    using in_data_t    = int8_t;
+    using acc_data_t   = int32_t;
+    using bias_data_t  = int32_t;
+    using scale_data_t = float;
+    using out_data_t   = int8_t;
 #endif
 
     std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
@@ -288,6 +288,7 @@ int main(int argc, char* argv[])
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
     Tensor<bias_data_t> bias(bias_lengths_host);
+    Tensor<scale_data_t> scale(bias_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
     Tensor<in_data_t> max_device(max_lengths_host);
@@ -337,7 +338,8 @@ int main(int argc, char* argv[])
         wei.GenerateTensorValue(gen_wei, num_thread);
     }
 
-    bias.GenerateTensorValue(GeneratorTensor_3<bias_data_t>{-5, 5}, num_thread);
+    bias.GenerateTensorValue(GeneratorTensor_2<bias_data_t>{-5, 5}, num_thread);
+    scale.GenerateTensorValue(GeneratorTensor_3<scale_data_t>{-5, 5}, num_thread);
 
     auto f_make_for_device_nchwc = [&]() {
         const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
@@ -368,6 +370,7 @@ int main(int argc, char* argv[])
             in_data_t,
             acc_data_t,
             bias_data_t,
+            scale_data_t,
             out_data_t,
             activ_type>(tmp[I0], // in_lengths_dev
                         tmp[I1], // wei_lengths_dev
@@ -380,6 +383,7 @@ int main(int argc, char* argv[])
                         in,
                         wei,
                         bias,
+                        scale,
                         out_device,
                         max_device,
                         nrepeat);
@@ -388,16 +392,18 @@ int main(int argc, char* argv[])
 
     if(do_verification)
     {
-        host_direct_convolution_maxpool2x2_nchwc(in,
-                                                 wei,
-                                                 bias,
-                                                 out_host,
-                                                 max_host,
-                                                 make_tuple(conv_stride_h, conv_stride_w),
-                                                 make_tuple(conv_dilation_h, conv_dilation_w),
-                                                 make_tuple(in_left_pad_h, in_left_pad_w),
-                                                 make_tuple(in_right_pad_h, in_right_pad_w),
-                                                 Relu{});
+        host_direct_convolution_maxpool2x2_nchwc(
+            in,
+            wei,
+            bias,
+            scale,
+            out_host,
+            max_host,
+            make_tuple(conv_stride_h, conv_stride_w),
+            make_tuple(conv_dilation_h, conv_dilation_w),
+            make_tuple(in_left_pad_h, in_left_pad_w),
+            make_tuple(in_right_pad_h, in_right_pad_w),
+            ck::tensor_operation::element_wise::HardTanhQuant{0.3});
 
         check_error(out_host, out_device);
         check_error(max_host, max_device);

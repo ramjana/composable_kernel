@@ -7,6 +7,7 @@
 template <typename TInWei,
           typename TAcc,
           typename TBias,
+          typename TScale,
           typename TOut,
           ck::ActivTypeEnum_t activ_type,
           typename InLengths,
@@ -27,6 +28,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
     const Tensor<TInWei>& in_n_c0_hi_wi_c1,
     const Tensor<TInWei>& wei_k_c0_y_x_c1,
     const Tensor<TBias>& bias_k0_k1,
+    const Tensor<TScale>& scale_k0_k1,
     Tensor<TOut>& out_n_k0_ho_wo_k1,
     ck::index_t nrepeat)
 {
@@ -59,11 +61,13 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                                           in_n_c0_hi_wi_c1.mDesc.GetElementSpace());
     DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
     DeviceMem bias_k0_k1_device_buf(sizeof(TBias) * bias_k0_k1.mDesc.GetElementSpace());
+    DeviceMem scale_k0_k1_device_buf(sizeof(TScale) * bias_k0_k1.mDesc.GetElementSpace());
     DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
                                            out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
     bias_k0_k1_device_buf.ToDevice(bias_k0_k1.mData.data());
+    scale_k0_k1_device_buf.ToDevice(scale_k0_k1.mData.data());
 
 #if USE_CONV_FIG
     constexpr index_t BlockSize = CONV_BLOCK_SIZE;
@@ -182,6 +186,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
             TInWei,
             TAcc,
             TBias,
+            TScale,
             TOut,
             E1,
             E2,
@@ -227,6 +232,7 @@ void device_convolution_bias_activ_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0y
                             static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
                             static_cast<TBias*>(bias_k0_k1_device_buf.GetDeviceBuffer()),
+                            static_cast<TScale*>(scale_k0_k1_device_buf.GetDeviceBuffer()),
                             static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
                             nrepeat);
 

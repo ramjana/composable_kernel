@@ -10,6 +10,7 @@ template <ck::index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
           typename FloatBias,
+          typename FloatScale,
           typename FloatC,
           ck::index_t E1_,
           ck::index_t E2_,
@@ -51,6 +52,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                        const FloatAB* __restrict__ p_a_grid,
                        const FloatAB* __restrict__ p_b_grid,
                        const FloatBias* __restrict__ p_bias_grid,
+                       const FloatScale* __restrict__ p_scale_grid,
                        FloatC* __restrict__ p_d_grid,
                        const int nrepeat) const
     {
@@ -216,6 +218,7 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             FloatAB,
             FloatAcc,
             FloatBias,
+            FloatScale,
             FloatC,
             InMemoryDataOperationEnum_t::Set,
             decltype(a_e0_e1_k_e2_grid_desc),
@@ -350,11 +353,12 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
             static_assert(c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc.IsKnownAtCompileTime(), "");
             static_assert(c_blockid_to_k_n_h_w_block_cluster_adaptor.IsKnownAtCompileTime(), "");
 
-            const auto kernel = kernel_gemm_dlops_v3_resize_add<
+            const auto kernel = kernel_gemm_dlops_v3_resize_add_per_channel<
                 GridwiseGemm,
                 FloatAB,
                 FloatAcc,
                 FloatBias,
+                FloatScale,
                 FloatC,
                 remove_reference_t<AGridDesc_E0_E1_K0_K1_E2>,
                 remove_reference_t<BGridDesc_E0_E1_N_H0_H1_H2_W0_W1_W2_E2>,
@@ -372,9 +376,8 @@ struct DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0
                                               p_a_grid,
                                               p_b_grid,
                                               p_bias_grid,
-                                              p_d_grid,
-                                              0.3,
-                                              1.0);
+                                              p_scale_grid,
+                                              p_d_grid);
         }
 #endif
         return ave_time;
