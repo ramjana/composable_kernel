@@ -127,6 +127,13 @@ struct scalar_type<int8_t>
     static constexpr index_t vector_size = 1;
 };
 
+template <>
+struct scalar_type<uint8_t>
+{
+    using type                           = uint8_t;
+    static constexpr index_t vector_size = 1;
+};
+
 //
 template <typename T>
 struct vector_type<T, 1>
@@ -926,6 +933,20 @@ using int8x8_t  = typename vector_type<int8_t, 8>::type;
 using int8x16_t = typename vector_type<int8_t, 16>::type;
 using int8x32_t = typename vector_type<int8_t, 32>::type;
 using int8x64_t = typename vector_type<int8_t, 64>::type;
+
+// u8
+using uint8x2_t  = typename vector_type<uint8_t, 2>::type;
+using uint8x4_t  = typename vector_type<uint8_t, 4>::type;
+using uint8x8_t  = typename vector_type<uint8_t, 8>::type;
+using uint8x16_t = typename vector_type<uint8_t, 16>::type;
+using uint8x32_t = typename vector_type<uint8_t, 32>::type;
+using uint8x64_t = typename vector_type<uint8_t, 64>::type;
+
+// i4
+using int4x2_t  = uint8_t;
+using int4x4_t  = uint8x2_t;
+using int4x8_t  = uint8x4_t;
+using int4x16_t = uint8x8_t;
 
 // Convert X to Y
 template <typename Y, typename X>

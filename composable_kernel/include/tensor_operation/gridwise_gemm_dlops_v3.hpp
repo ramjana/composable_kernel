@@ -900,8 +900,6 @@ __global__ void
 template <index_t BlockSize,
           typename FloatAB,
           typename FloatAcc,
-          typename FloatBias,
-          typename FloatScale,
           typename FloatC,
           InMemoryDataOperationEnum_t CGlobalMemoryDataOperation,
           typename AGridDesc_E0_E1_K_E2,
@@ -1307,6 +1305,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         constexpr auto bias_k0_k1_thread_desc =
             make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
 
+        using FloatBias = remove_cvref_t<typename BiasGlobalBuff::type>;
+
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
                      FloatBias,
                      bias_k0_k1_thread_desc.GetElementSpaceSize(),
@@ -1337,6 +1337,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
                                      make_tuple(I0, I0),
                                      bias_thread_buf,
                                      hacks);
+
+        using FloatScale = remove_cvref_t<typename ScaleGlobalBuff::type>;
 
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
                      FloatScale,
@@ -1400,6 +1402,8 @@ struct GridwiseGemmDlops_km_kn_mn_v3
 
         constexpr auto bias_k0_k1_thread_desc =
             make_naive_tensor_descriptor_packed(make_tuple(I1, Number<KPerThread>{}));
+
+        using FloatBias = typename BiasGlobalBuff::type;
 
         StaticBuffer<AddressSpaceEnum_t::Vgpr,
                      FloatBias,

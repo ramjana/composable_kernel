@@ -247,5 +247,28 @@ inner_product<int8x16_t, int8x16_t, int32_t>(const int8x16_t& a, const int8x16_t
 #endif
 }
 
+template <>
+__device__ void
+inner_product<int4x8_t, int4x8_t, int32_t>(const int4x8_t& a, const int4x8_t& b, int32_t& c)
+{
+    c = __builtin_amdgcn_sdot8(bit_cast<int32_t>(a), bit_cast<int32_t>(b), c, false);
+}
+
+template <>
+__device__ void
+inner_product<int4x16_t, int4x16_t, int32_t>(const int4x16_t& a, const int4x16_t& b, int32_t& c)
+{
+    constexpr auto I0 = Number<0>{};
+    constexpr auto I1 = Number<1>{};
+
+    inner_product(vector_type<uint8_t, 8>{a}.AsType<int4x8_t>()[I0],
+                  vector_type<uint8_t, 8>{b}.AsType<int4x8_t>()[I0],
+                  c);
+
+    inner_product(vector_type<uint8_t, 8>{a}.AsType<int4x8_t>()[I1],
+                  vector_type<uint8_t, 8>{b}.AsType<int4x8_t>()[I1],
+                  c);
+}
+
 } // namespace ck
 #endif

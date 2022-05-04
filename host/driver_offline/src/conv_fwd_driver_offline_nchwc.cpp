@@ -151,9 +151,9 @@ int main(int argc, char* argv[])
     constexpr auto Y  = Number<1>{};
     constexpr auto X  = Number<1>{};
     constexpr auto C0 = Number<4>{};
-    constexpr auto C1 = Number<16>{};
-    constexpr auto K0 = Number<2>{};
-    constexpr auto K1 = Number<16>{};
+    constexpr auto C1 = Number<8>{};
+    constexpr auto K0 = Number<4>{};
+    constexpr auto K1 = Number<8>{};
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;

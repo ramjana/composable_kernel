@@ -197,8 +197,6 @@ struct DriverDynamicConvolutionBiasActivForwardImplicitGemmDlops_v5r1_nc0hwc1_kc
             BlockSize,
             FloatAB,
             FloatAcc,
-            FloatBias,
-            FloatScale,
             FloatC,
             InMemoryDataOperationEnum_t::Set,
             decltype(a_e0_e1_k_e2_grid_desc),
