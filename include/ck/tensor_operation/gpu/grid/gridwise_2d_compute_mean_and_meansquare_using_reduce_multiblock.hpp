@@ -27,7 +27,7 @@
 #define CK_GRIDWISE_2D_COMPUTE_MEAN_AND_MEANSQUARE_USING_REDUCE_MULTIBLOCK_HPP
 
 #include "data_type.hpp"
-#include "gridwise_2d_reduction_multiblock_atomic_add.hpp"
+#include "gridwise_2d_reduction_multiblock.hpp"
 
 namespace ck {
 
@@ -54,25 +54,27 @@ __global__ void kernel_compute_mean_and_meansquare_using_reduction_multiblock(
     AccDataType* const __restrict__ resultSaveMean,
     AccDataType* const __restrict__ resultSaveMeanSquare)
 {
-    GridwiseReduceMean::Run(in_out_grid_desc_m_k,
-                            scale_bias_mean_var_grid_desc_m,
-                            in_element_wise_op_mean,
-                            acc_element_wise_op_mean,
-                            block_group_size,
-                            num_k_block_tile_iteration,
-                            type_convert<AccDataType>(1.0f),
-                            p_in_global,
-                            resultSaveMean);
+    constexpr bool UseAtomicAdd = true;
 
-    GridwiseReduceMeanSquare::Run(in_out_grid_desc_m_k,
-                                  scale_bias_mean_var_grid_desc_m,
-                                  in_element_wise_op_meansquare,
-                                  acc_element_wise_op_meansquare,
-                                  block_group_size,
-                                  num_k_block_tile_iteration,
-                                  type_convert<AccDataType>(1.0f),
-                                  p_in_global,
-                                  resultSaveMeanSquare);
+    GridwiseReduceMean::template Run<UseAtomicAdd>(in_out_grid_desc_m_k,
+                                                   scale_bias_mean_var_grid_desc_m,
+                                                   in_element_wise_op_mean,
+                                                   acc_element_wise_op_mean,
+                                                   block_group_size,
+                                                   num_k_block_tile_iteration,
+                                                   type_convert<AccDataType>(1.0f),
+                                                   p_in_global,
+                                                   resultSaveMean);
+
+    GridwiseReduceMeanSquare::template Run<UseAtomicAdd>(in_out_grid_desc_m_k,
+                                                         scale_bias_mean_var_grid_desc_m,
+                                                         in_element_wise_op_meansquare,
+                                                         acc_element_wise_op_meansquare,
+                                                         block_group_size,
+                                                         num_k_block_tile_iteration,
+                                                         type_convert<AccDataType>(1.0f),
+                                                         p_in_global,
+                                                         resultSaveMeanSquare);
 };
 
 } // namespace ck

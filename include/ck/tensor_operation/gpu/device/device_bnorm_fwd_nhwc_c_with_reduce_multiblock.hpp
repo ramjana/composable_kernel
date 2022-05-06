@@ -247,42 +247,44 @@ struct DeviceBatchNormFwd_Input_N_H_W_C_Output_C_With_Reduce_Multiblock : public
             using TernaryOperationNormalize    = ck::tensor_operation::element_wise::Normalize;
 
             using GridwiseReduceMean =
-                GridwiseReduction_mk_to_m_multiblock_atomic_add<InOutDataType,
-                                                                AccDataType,
-                                                                AccDataType,
-                                                                InOutGridDesc_M_K,
-                                                                ScaleBiasMeanVarGridDesc_M,
-                                                                ReductionOperation,
-                                                                InElementwiseOperationMean,
-                                                                AccElementwiseOperationMean,
-                                                                false, // PropagateNan
-                                                                BlockSize,
-                                                                MThreadClusterSize,
-                                                                KThreadClusterSize,
-                                                                MThreadSliceSize,
-                                                                KThreadSliceSize,
-                                                                0, // InSrcVectorDim
-                                                                InOutVectorSize,
-                                                                ScaleBiasMeanVarVectorSize>;
+                GridwiseReduction_in_mk_out_mk_or_m_multiblock<InOutDataType,
+                                                               AccDataType,
+                                                               AccDataType,
+                                                               int32_t, // IndexDataType
+                                                               InOutGridDesc_M_K,
+                                                               ScaleBiasMeanVarGridDesc_M,
+                                                               ReductionOperation,
+                                                               InElementwiseOperationMean,
+                                                               AccElementwiseOperationMean,
+                                                               false, // PropagateNan
+                                                               BlockSize,
+                                                               MThreadClusterSize,
+                                                               KThreadClusterSize,
+                                                               MThreadSliceSize,
+                                                               KThreadSliceSize,
+                                                               0, // InSrcVectorDim
+                                                               InOutVectorSize,
+                                                               ScaleBiasMeanVarVectorSize>;
 
             using GridwiseReduceMeanSquare =
-                GridwiseReduction_mk_to_m_multiblock_atomic_add<InOutDataType,
-                                                                AccDataType,
-                                                                AccDataType,
-                                                                InOutGridDesc_M_K,
-                                                                ScaleBiasMeanVarGridDesc_M,
-                                                                ReductionOperation,
-                                                                InElementwiseOperationMeanSquare,
-                                                                AccElementwiseOperationMeanSquare,
-                                                                false, // PropagateNan
-                                                                BlockSize,
-                                                                MThreadClusterSize,
-                                                                KThreadClusterSize,
-                                                                MThreadSliceSize,
-                                                                KThreadSliceSize,
-                                                                0, // InSrcVectorDim
-                                                                InOutVectorSize,
-                                                                ScaleBiasMeanVarVectorSize>;
+                GridwiseReduction_in_mk_out_mk_or_m_multiblock<InOutDataType,
+                                                               AccDataType,
+                                                               AccDataType,
+                                                               int32_t, // IndexDataType
+                                                               InOutGridDesc_M_K,
+                                                               ScaleBiasMeanVarGridDesc_M,
+                                                               ReductionOperation,
+                                                               InElementwiseOperationMeanSquare,
+                                                               AccElementwiseOperationMeanSquare,
+                                                               false, // PropagateNan
+                                                               BlockSize,
+                                                               MThreadClusterSize,
+                                                               KThreadClusterSize,
+                                                               MThreadSliceSize,
+                                                               KThreadSliceSize,
+                                                               0, // InSrcVectorDim
+                                                               InOutVectorSize,
+                                                               ScaleBiasMeanVarVectorSize>;
 
             InElementwiseOperationMean in_element_wise_op_mean{};
             AccElementwiseOperationMean acc_element_wise_op_mean{arg.n * arg.h * arg.w};

@@ -6,7 +6,7 @@
 #include "device.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_multiblock_partial_reduce.hpp"
+#include "gridwise_2d_reduction_multiblock.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -276,35 +276,39 @@ struct DeviceReduceMultiBlockPartialReduce
             using WorkspaceDesc_M_K = decltype(ws_desc_m_k);
 
             using GridwiseReduce =
-                GridwiseReduction_mk_to_mk_multiblock_partial_reduce<InDataType,
-                                                                     AccDataType,
-                                                                     IndexDataType,
-                                                                     InGridDesc_M_K,
-                                                                     WorkspaceDesc_M_K,
-                                                                     ReduceOperation,
-                                                                     InElementwiseOperation,
-                                                                     AccElementwiseOperation,
-                                                                     PropagateNan,
-                                                                     BlockSize,
-                                                                     MThreadClusterSize,
-                                                                     KThreadClusterSize,
-                                                                     MThreadSliceSize,
-                                                                     KThreadSliceSize,
-                                                                     InSrcVectorDim,
-                                                                     InSrcVectorSize,
-                                                                     OutDstVectorSize>;
+                GridwiseReduction_in_mk_out_mk_or_m_multiblock<InDataType,
+                                                               AccDataType, // AccDataType as
+                                                                            // OutDataType
+                                                               AccDataType,
+                                                               IndexDataType,
+                                                               InGridDesc_M_K,
+                                                               WorkspaceDesc_M_K,
+                                                               ReduceOperation,
+                                                               InElementwiseOperation,
+                                                               AccElementwiseOperation,
+                                                               PropagateNan,
+                                                               BlockSize,
+                                                               MThreadClusterSize,
+                                                               KThreadClusterSize,
+                                                               MThreadSliceSize,
+                                                               KThreadSliceSize,
+                                                               InSrcVectorDim,
+                                                               InSrcVectorSize,
+                                                               OutDstVectorSize>;
 
             float avg_time = 0;
 
-            const auto kernel = kernel_partial_reduce_multiblock<GridwiseReduce,
-                                                                 NeedIndices,
-                                                                 InDataType,
-                                                                 AccDataType,
-                                                                 IndexDataType,
-                                                                 InGridDesc_M_K,
-                                                                 WorkspaceDesc_M_K,
-                                                                 InElementwiseOperation,
-                                                                 AccElementwiseOperation>;
+            const auto kernel = kernel_reduce_multiblock<GridwiseReduce,
+                                                         false, // don't use AtomicAdd
+                                                         NeedIndices,
+                                                         InDataType,
+                                                         AccDataType, // AccDataType as OutDataType
+                                                         AccDataType,
+                                                         IndexDataType,
+                                                         InGridDesc_M_K,
+                                                         WorkspaceDesc_M_K,
+                                                         InElementwiseOperation,
+                                                         AccElementwiseOperation>;
 
             avg_time = launch_and_time_kernel(kernel,
                                               nrepeat,
@@ -317,6 +321,7 @@ struct DeviceReduceMultiBlockPartialReduce
                                               arg.acc_elementwise_op_,
                                               arg.blkGroupSize,
                                               arg.numBlockTileIteration,
+                                              1.0f, // alpha
                                               arg.in_dev_,
                                               arg.workspace_dev_,
                                               arg.workspace_indices_dev_);

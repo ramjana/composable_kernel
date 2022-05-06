@@ -7,7 +7,7 @@
 #include "device_base.hpp"
 #include "device_reduce.hpp"
 #include "device_reduce_common.hpp"
-#include "gridwise_2d_reduction_multiblock_atomic_add.hpp"
+#include "gridwise_2d_reduction_multiblock.hpp"
 #include "gridwise_set_buffer_value.hpp"
 
 namespace ck {
@@ -255,37 +255,41 @@ struct DeviceReduceMultiBlockAtomicAdd
             using OutGridDesc_M  = decltype(out_grid_desc_m);
 
             using GridwiseReduce =
-                GridwiseReduction_mk_to_m_multiblock_atomic_add<InDataType,
-                                                                OutDataType,
-                                                                AccDataType,
-                                                                InGridDesc_M_K,
-                                                                OutGridDesc_M,
-                                                                ReduceOperation,
-                                                                InElementwiseOperation,
-                                                                AccElementwiseOperation,
-                                                                PropagateNan,
-                                                                BlockSize,
-                                                                MThreadClusterSize,
-                                                                KThreadClusterSize,
-                                                                MThreadSliceSize,
-                                                                KThreadSliceSize,
-                                                                InSrcVectorDim,
-                                                                InSrcVectorSize,
-                                                                OutDstVectorSize>;
+                GridwiseReduction_in_mk_out_mk_or_m_multiblock<InDataType,
+                                                               OutDataType,
+                                                               AccDataType,
+                                                               int32_t, // IndexDataType
+                                                               InGridDesc_M_K,
+                                                               OutGridDesc_M,
+                                                               ReduceOperation,
+                                                               InElementwiseOperation,
+                                                               AccElementwiseOperation,
+                                                               PropagateNan,
+                                                               BlockSize,
+                                                               MThreadClusterSize,
+                                                               KThreadClusterSize,
+                                                               MThreadSliceSize,
+                                                               KThreadSliceSize,
+                                                               InSrcVectorDim,
+                                                               InSrcVectorSize,
+                                                               OutDstVectorSize>;
 
             float avg_time = 0;
 
             KernelTimer timer;
 
             const auto kernel_pre  = kernel_buffer_set_value<BlockSize, OutDataType, OutGridDesc_M>;
-            const auto kernel_main = kernel_reduce_multiblock_atocmi_add<GridwiseReduce,
-                                                                         InDataType,
-                                                                         OutDataType,
-                                                                         AccDataType,
-                                                                         InGridDesc_M_K,
-                                                                         OutGridDesc_M,
-                                                                         InElementwiseOperation,
-                                                                         AccElementwiseOperation>;
+            const auto kernel_main = kernel_reduce_multiblock<GridwiseReduce,
+                                                              true,  // UseAtomicAdd
+                                                              false, // NeedIndices
+                                                              InDataType,
+                                                              OutDataType,
+                                                              AccDataType,
+                                                              int32_t, // IndexDataType
+                                                              InGridDesc_M_K,
+                                                              OutGridDesc_M,
+                                                              InElementwiseOperation,
+                                                              AccElementwiseOperation>;
 
             printf("launch_and_time_kernel: grid_dim {%ld, 1, 1}, block_dim {%d, 1, 1} \n",
                    arg.gridSize,
@@ -317,7 +321,8 @@ struct DeviceReduceMultiBlockAtomicAdd
                               arg.numBlockTileIteration,
                               arg.alpha_,
                               arg.in_dev_,
-                              arg.out_dev_);
+                              arg.out_dev_,
+                              nullptr);
             };
 
             timer.End();
