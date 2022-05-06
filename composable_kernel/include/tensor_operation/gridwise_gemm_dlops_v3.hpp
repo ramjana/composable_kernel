@@ -905,7 +905,6 @@ template <index_t BlockSize,
           typename AGridDesc_E0_E1_K_E2,
           typename BGridDesc_E0_E1_N_Ho_Wo_E2,
           typename CGridDesc_K_N_Ho_Wo,
-          typename DGridDesc_K_N_Hx_Wx,
           index_t E1_,
           index_t E2_,
           index_t K2_,
@@ -1100,6 +1099,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         return c_k0_k1_n_h0_h1_h2_w0_w1_w2_grid_desc;
     }
 
+    template <typename DGridDesc_K_N_Hx_Wx>
     __host__ __device__ static constexpr auto
     MakeDK0K1NH0H1HxW0W1WxGridDescriptorMaxPool(const DGridDesc_K_N_Hx_Wx& d_k_n_hx_wx_grid_desc)
     {
@@ -1141,6 +1141,7 @@ struct GridwiseGemmDlops_km_kn_mn_v3
         return d_k0_k1_n_h0_h1_hx_w0_w1_wx_grid_desc;
     }
 
+    template <typename DGridDesc_K_N_Hx_Wx>
     __host__ __device__ static constexpr auto
     MakeDK0K1NH0H1HxW0W1WxGridDescriptorResizeAdd(const DGridDesc_K_N_Hx_Wx& d_k_n_hx_wx_grid_desc)
     {

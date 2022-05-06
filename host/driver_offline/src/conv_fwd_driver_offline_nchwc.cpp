@@ -59,8 +59,28 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
                     {
                         for(int c1 = 0; c1 < wei.mDesc.GetLengths()[4]; ++c1)
                         {
-                            v += static_cast<const double>(in(n, c0, hi, wi, c1)) *
-                                 static_cast<const double>(wei(k, c0, y, x, c1));
+                            if(is_same<TIn, int4x2_t>::value)
+                            {
+                                int32x2_t ax2 = type_convert<int32x2_t>(in(n, c0, hi, wi, c1));
+                                int32x2_t bx2 = type_convert<int32x2_t>(wei(k, c0, y, x, c1));
+
+                                int32_t a0 = vector_type<int32_t, 2>{ax2}.AsType<int32_t>()[I0];
+                                int32_t a1 = vector_type<int32_t, 2>{ax2}.AsType<int32_t>()[I1];
+
+                                int32_t b0 = vector_type<int32_t, 2>{bx2}.AsType<int32_t>()[I0];
+                                int32_t b1 = vector_type<int32_t, 2>{bx2}.AsType<int32_t>()[I1];
+
+                                // std::cout << "a{" << a0 << "," << a1 << "} b{" << b0 << "," << b1
+                                //<< "}" << std::endl;
+
+                                v += a0 * b0;
+                                v += a1 * b1;
+                            }
+                            else
+                            {
+                                v += type_convert<float>(in(n, c0, hi, wi, c1)) *
+                                     type_convert<float>(wei(k, c0, y, x, c1));
+                            }
                         }
                     }
                 }
@@ -75,7 +95,8 @@ void host_direct_convolution_nchwc(const Tensor<TIn>& in,
                                out.mDesc.GetLengths()[1],
                                out.mDesc.GetLengths()[2],
                                out.mDesc.GetLengths()[3],
-                               out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+                               // out.mDesc.GetLengths()[4])(std::thread::hardware_concurrency());
+                               out.mDesc.GetLengths()[4])(1);
 }
 
 int main(int argc, char* argv[])
@@ -146,14 +167,14 @@ int main(int argc, char* argv[])
     const int nrepeat          = std::stoi(argv[5]);
 
     constexpr auto N  = Number<1>{};
-    constexpr auto Hi = Number<1080>{};
-    constexpr auto Wi = Number<1920>{};
+    constexpr auto Hi = Number<16>{};
+    constexpr auto Wi = Number<64>{};
     constexpr auto Y  = Number<1>{};
     constexpr auto X  = Number<1>{};
-    constexpr auto C0 = Number<4>{};
+    constexpr auto C0 = Number<2>{};
     constexpr auto C1 = Number<8>{};
-    constexpr auto K0 = Number<4>{};
-    constexpr auto K1 = Number<8>{};
+    constexpr auto K0 = Number<2>{};
+    constexpr auto K1 = Number<16>{};
 
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
@@ -180,8 +201,12 @@ int main(int argc, char* argv[])
     using in_data_t   = half_t;
     using acc_data_t  = float;
     using out_data_t  = half_t;
-#elif 1
+#elif 0
     using in_data_t  = int8_t;
+    using acc_data_t = int32_t;
+    using out_data_t = int8_t;
+#elif 1
+    using in_data_t  = int4x2_t;
     using acc_data_t = int32_t;
     using out_data_t = int8_t;
 #endif
@@ -233,20 +258,20 @@ int main(int argc, char* argv[])
         break;
     case 2:
         in.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{0, 5}, num_thread);
         break;
     case 3:
-        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{0, 5}, num_thread);
         wei.GenerateTensorValue(GeneratorTensor_1<in_data_t>{}, num_thread);
         break;
     case 4:
-        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{-5, 5}, num_thread);
+        in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{0, 5}, num_thread);
+        wei.GenerateTensorValue(GeneratorTensor_2<in_data_t>{0, 3}, num_thread);
         break;
-    case 5:
-        in.GenerateTensorValue(GeneratorTensor_3<in_data_t>{0.0, 1.0}, num_thread);
-        wei.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.5, 0.5}, num_thread);
-        break;
+    // case 5:
+    // in.GenerateTensorValue(GeneratorTensor_3<in_data_t>{0.0, 1.0}, num_thread);
+    // wei.GenerateTensorValue(GeneratorTensor_3<in_data_t>{-0.5, 0.5}, num_thread);
+    // break;
     default:
         in.GenerateTensorValue(GeneratorTensor_2<in_data_t>{1, 5}, num_thread);
 

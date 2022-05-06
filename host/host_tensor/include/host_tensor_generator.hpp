@@ -51,6 +51,19 @@ struct GeneratorTensor_1<int8_t>
     }
 };
 
+template <>
+struct GeneratorTensor_1<ck::int4x2_t>
+{
+    ck::int32x2_t tmp{1, 1};
+    ck::int4x2_t value = ck::type_convert<ck::int4x2_t>(tmp);
+
+    template <typename... Is>
+    ck::int4x2_t operator()(Is...)
+    {
+        return value;
+    }
+};
+
 template <typename T>
 struct GeneratorTensor_2
 {
@@ -88,6 +101,27 @@ struct GeneratorTensor_2<int8_t>
     int8_t operator()(Is...)
     {
         return (std::rand() % (max_value - min_value)) + min_value;
+    }
+};
+
+template <>
+struct GeneratorTensor_2<ck::int4x2_t>
+{
+    int min_value = 0;
+    int max_value = 5;
+
+    template <typename... Is>
+    ck::int4x2_t operator()(Is...)
+    {
+
+        int low  = (std::rand() % (max_value - min_value)) + min_value;
+        int high = (std::rand() % (max_value - min_value)) + min_value;
+
+        ck::int32x2_t tmp{low, high};
+
+        ck::int4x2_t value = ck::type_convert<ck::int4x2_t>(tmp);
+
+        return value;
     }
 };
 
