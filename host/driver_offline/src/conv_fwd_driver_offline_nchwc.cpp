@@ -105,11 +105,11 @@ int main(int argc, char* argv[])
 
     constexpr auto I0 = Number<0>{};
     constexpr auto I1 = Number<1>{};
-    constexpr auto I2 = Number<2>{};
-    constexpr auto I3 = Number<3>{};
-    constexpr auto I4 = Number<4>{};
-    constexpr auto I5 = Number<5>{};
-    constexpr auto I6 = Number<6>{};
+    // constexpr auto I2 = Number<2>{};
+    // constexpr auto I3 = Number<3>{};
+    // constexpr auto I4 = Number<4>{};
+    // constexpr auto I5 = Number<5>{};
+    // constexpr auto I6 = Number<6>{};
 
 #if USE_DYNAMIC_MODE
     // dynamic mode
@@ -176,6 +176,8 @@ int main(int argc, char* argv[])
     constexpr auto K0 = Number<2>{};
     constexpr auto K1 = Number<16>{};
 
+    constexpr auto K1Packed = Number<8>{};
+
     constexpr auto conv_stride_h   = I1;
     constexpr auto conv_stride_w   = I1;
     constexpr auto conv_dilation_h = I1;
@@ -206,12 +208,14 @@ int main(int argc, char* argv[])
     using acc_data_t = int32_t;
     using out_data_t = int8_t;
 #elif 1
-    using in_data_t  = int4x2_t;
-    using acc_data_t = int32_t;
-    using out_data_t = int8_t;
+    using in_data_t         = int4x2_t;
+    using acc_data_t        = int32_t;
+    using out_data_t        = int8_t;
+    using out_packed_data_t = int4x2_t;
 #endif
 
-    std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5);
+    std::vector<std::size_t> in_lengths_host(5), wei_lengths_host(5), out_lengths_host(5),
+        out_packed_lengths_host(5);
 
     in_lengths_host[0] = static_cast<std::size_t>(N);
     in_lengths_host[1] = static_cast<std::size_t>(C0);
@@ -231,10 +235,18 @@ int main(int argc, char* argv[])
     out_lengths_host[3] = static_cast<std::size_t>(Wo);
     out_lengths_host[4] = static_cast<std::size_t>(K1);
 
+    out_packed_lengths_host[0] = static_cast<std::size_t>(N);
+    out_packed_lengths_host[1] = static_cast<std::size_t>(K0);
+    out_packed_lengths_host[2] = static_cast<std::size_t>(Ho);
+    out_packed_lengths_host[3] = static_cast<std::size_t>(Wo);
+    out_packed_lengths_host[4] = static_cast<std::size_t>(K1 / 2);
+
     Tensor<in_data_t> in(in_lengths_host);
     Tensor<in_data_t> wei(wei_lengths_host);
     Tensor<out_data_t> out_host(out_lengths_host);
+    Tensor<out_packed_data_t> out_packed_host(out_packed_lengths_host);
     Tensor<out_data_t> out_device(out_lengths_host);
+    Tensor<out_packed_data_t> out_packed_device(out_packed_lengths_host);
 
     ostream_HostTensorDescriptor(in.mDesc, std::cout << "in: ");
     ostream_HostTensorDescriptor(wei.mDesc, std::cout << "wei: ");
@@ -281,43 +293,47 @@ int main(int argc, char* argv[])
         wei.GenerateTensorValue(gen_wei, num_thread);
     }
 
-    auto f_make_for_device_nchwc = [&]() {
-        const auto in_lengths_dev     = make_tuple(N, C0, Hi, Wi, C1);
-        const auto wei_lengths_dev    = make_tuple(K0 * K1, C0, Y, X, C1);
-        const auto out_lengths_dev    = make_tuple(N, K0, Ho, Wo, K1);
-        const auto conv_strides_dev   = make_tuple(conv_stride_h, conv_stride_w);
-        const auto conv_dilations_dev = make_tuple(conv_dilation_h, conv_dilation_w);
-        const auto in_left_pads_dev   = make_tuple(in_left_pad_h, in_left_pad_w);
-        const auto in_right_pads_dev  = make_tuple(in_right_pad_h, in_right_pad_w);
+    // auto f_make_for_device_nchwc = [&]() {
+    const auto in_lengths_dev         = make_tuple(N, C0, Hi, Wi, C1);
+    const auto wei_lengths_dev        = make_tuple(K0 * K1, C0, Y, X, C1);
+    const auto out_lengths_dev        = make_tuple(N, K0, Ho, Wo, K1);
+    const auto out_packed_lengths_dev = make_tuple(N, K0, Ho, Wo, K1Packed);
+    const auto conv_strides_dev       = make_tuple(conv_stride_h, conv_stride_w);
+    const auto conv_dilations_dev     = make_tuple(conv_dilation_h, conv_dilation_w);
+    const auto in_left_pads_dev       = make_tuple(in_left_pad_h, in_left_pad_w);
+    const auto in_right_pads_dev      = make_tuple(in_right_pad_h, in_right_pad_w);
 
-        return make_tuple(in_lengths_dev,
-                          wei_lengths_dev,
-                          out_lengths_dev,
-                          conv_strides_dev,
-                          conv_dilations_dev,
-                          in_left_pads_dev,
-                          in_right_pads_dev);
-    };
+    // return make_tuple(in_lengths_dev,
+    // wei_lengths_dev,
+    // out_lengths_dev,
+    // conv_strides_dev,
+    // conv_dilations_dev,
+    // in_left_pads_dev,
+    // in_right_pads_dev);
+    //};
 
 #if USE_CONV_FWD_V5R1_NCHWC
     if(algo == ConvForwardAlgo::V5R1NCHWC)
     {
-        const auto tmp = f_make_for_device_nchwc();
+        // const auto tmp = f_make_for_device_nchwc();
 
-        device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<in_data_t,
-                                                                                    acc_data_t,
-                                                                                    out_data_t>(
-            tmp[I0],
-            tmp[I1],
-            tmp[I2],
-            tmp[I3],
-            tmp[I4],
-            tmp[I5],
-            tmp[I6],
-            in,
-            wei,
-            out_device,
-            nrepeat);
+        device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1<
+            in_data_t,
+            acc_data_t,
+            out_data_t,
+            out_packed_data_t>(in_lengths_dev,
+                               wei_lengths_dev,
+                               out_lengths_dev,
+                               out_packed_lengths_dev,
+                               conv_strides_dev,
+                               conv_dilations_dev,
+                               in_left_pads_dev,
+                               in_right_pads_dev,
+                               in,
+                               wei,
+                               out_device,
+                               out_packed_device,
+                               nrepeat);
     }
 #endif
 

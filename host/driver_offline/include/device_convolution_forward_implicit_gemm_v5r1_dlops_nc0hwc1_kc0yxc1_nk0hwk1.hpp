@@ -7,9 +7,11 @@
 template <typename TInWei,
           typename TAcc,
           typename TOut,
+          typename TOutPacked,
           typename InLengths,
           typename WeiLengths,
           typename OutLengths,
+          typename OutPackedLengths,
           typename ConvStrides,
           typename ConvDilations,
           typename InLeftPads,
@@ -18,6 +20,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     const InLengths& in_n_c0_hi_wi_c1_lengths,
     const WeiLengths& wei_k_c0_y_x_c1_lengths,
     const OutLengths& out_n_k0_ho_wo_k1_lengths,
+    const OutPackedLengths& out_packed_n_k0_ho_wo_kx_lengths,
     const ConvStrides& conv_strides,
     const ConvDilations& conv_dilations,
     const InLeftPads& in_left_pads,
@@ -25,6 +28,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     const Tensor<TInWei>& in_n_c0_hi_wi_c1,
     const Tensor<TInWei>& wei_k_c0_y_x_c1,
     Tensor<TOut>& out_n_k0_ho_wo_k1,
+    Tensor<TOutPacked>& out_packed_n_k0_ho_wo_kx,
     ck::index_t nrepeat)
 {
     using namespace ck;
@@ -52,11 +56,15 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     const auto Y = wei_k_c0_y_x_c1_lengths[I2];
     const auto X = wei_k_c0_y_x_c1_lengths[I3];
 
+    const auto K1Packed = out_packed_n_k0_ho_wo_kx_lengths[I4];
+
     DeviceMem in_n_c0_hi_wi_c1_device_buf(sizeof(TInWei) *
                                           in_n_c0_hi_wi_c1.mDesc.GetElementSpace());
     DeviceMem wei_k_c0_y_x_c1_device_buf(sizeof(TInWei) * wei_k_c0_y_x_c1.mDesc.GetElementSpace());
     DeviceMem out_n_k0_ho_wo_k1_device_buf(sizeof(TOut) *
                                            out_n_k0_ho_wo_k1.mDesc.GetElementSpace());
+    DeviceMem out_packed_n_k0_ho_wo_kx_device_buf(sizeof(TOutPacked) *
+                                                  out_packed_n_k0_ho_wo_kx.mDesc.GetElementSpace());
     in_n_c0_hi_wi_c1_device_buf.ToDevice(in_n_c0_hi_wi_c1.mData.data());
     wei_k_c0_y_x_c1_device_buf.ToDevice(wei_k_c0_y_x_c1.mData.data());
 
@@ -85,7 +93,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     constexpr index_t ABlockTransferSrcScalarPerVector_E2  = C1;
     constexpr index_t ABlockTransferDstScalarPerVector_E2  = C1;
     constexpr index_t BThreadTransferSrcScalarPerVector_E2 = C1;
-    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1;
+    constexpr index_t CThreadTransferDstScalarPerVector_K  = K1Packed;
 #elif 1
     constexpr index_t BlockSize = 128;
 
@@ -171,6 +179,8 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
         make_naive_tensor_descriptor_packed(make_tuple(K, C0, Y, X, C1));
     const auto out_n_k0_ho_wo_k1_desc =
         make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1));
+    const auto out_packed_n_k0_ho_wo_kx_desc =
+        make_naive_tensor_descriptor_packed(make_tuple(N, K0, Ho, Wo, K1Packed));
 
     constexpr auto conv_driver =
         DriverDynamicConvolutionForwardImplicitGemmDlops_v5r1_nc0hwc1_kc0yxc1_nk0hwk1<
@@ -178,6 +188,7 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
             TInWei,
             TAcc,
             TOut,
+            TOutPacked,
             E1,
             E2,
             K2,
@@ -210,19 +221,20 @@ void device_convolution_forward_implicit_gemm_v5r1_dlops_nc0hwc1_kc0yxc1_nk0hwk1
     for(int i = 0; i < 5; i++)
     {
 
-        const auto ave_time =
-            conv_driver.Run(wei_k_c0_y_x_c1_desc,
-                            in_n_c0_hi_wi_c1_desc,
-                            out_n_k0_ho_wo_k1_desc,
-                            conv_strides,
-                            conv_dilations,
-                            in_left_pads,
-                            in_right_pads,
-                            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
-                            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
-                            I1,
-                            nrepeat);
+        const auto ave_time = conv_driver.Run(
+            wei_k_c0_y_x_c1_desc,
+            in_n_c0_hi_wi_c1_desc,
+            out_n_k0_ho_wo_k1_desc,
+            out_packed_n_k0_ho_wo_kx_desc,
+            conv_strides,
+            conv_dilations,
+            in_left_pads,
+            in_right_pads,
+            static_cast<TInWei*>(wei_k_c0_y_x_c1_device_buf.GetDeviceBuffer()),
+            static_cast<TInWei*>(in_n_c0_hi_wi_c1_device_buf.GetDeviceBuffer()),
+            static_cast<TOut*>(out_n_k0_ho_wo_k1_device_buf.GetDeviceBuffer()),
+            static_cast<TOutPacked*>(out_packed_n_k0_ho_wo_kx_device_buf.GetDeviceBuffer()),
+            nrepeat);
 
         {
             float perf = static_cast<float>(std::size_t(2) * N * K * Ho * Wo * C0 * C1 * Y * X) /
