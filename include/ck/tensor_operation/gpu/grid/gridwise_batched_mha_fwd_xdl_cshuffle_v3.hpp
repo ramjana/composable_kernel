@@ -531,7 +531,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         //
 
         // A matrix blockwise copy
-        auto a_blockwise_copy =
+        auto q_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
                                                 AElementwiseOperation,
                                                 tensor_operation::element_wise::PassThrough,
@@ -562,7 +562,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 tensor_operation::element_wise::PassThrough{});
 
         // B matrix blockwise copy
-        auto b_blockwise_copy =
+        auto k_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,
                                                 BElementwiseOperation,
                                                 tensor_operation::element_wise::PassThrough,
@@ -603,7 +603,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             math::max(math::lcm(AK1, BK1),
                       MfmaSelector<FloatGemm, MPerXdl, NPerXdl>::selected_mfma.k_per_blk);
 
-        auto blockwise_gemm = BlockwiseGemmXdlops_v2<
+        auto qk_blockwise_gemm = BlockwiseGemmXdlops_v2<
             BlockSize,
             FloatGemm,
             FloatGemmAcc,
@@ -621,29 +621,29 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             KPack,
             true>{}; // TransposeC
 
-        auto acc_thread_buf = blockwise_gemm.GetCThreadBuffer();
+        auto acc_thread_buf = qk_blockwise_gemm.GetCThreadBuffer();
 
         // LDS allocation for A and B: be careful of alignment
-        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+        auto q_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatGemm*>(p_shared) + SharedMemTrait::a_block_space_offset,
             a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
-        auto b_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+        auto k_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
             static_cast<FloatGemm*>(p_shared) + SharedMemTrait::b_block_space_offset,
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
-        constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
-        constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
-        const auto a_block_reset_copy_step =
+        constexpr auto q_block_slice_copy_step = make_multi_index(KPerBlock / AK1, 0, 0);
+        constexpr auto k_block_slice_copy_step = make_multi_index(KPerBlock / BK1, 0, 0);
+        const auto q_block_reset_copy_step =
             make_multi_index(-a_grid_desc_ak0_m_ak1.GetLength(I0), 0, 0);
-        const auto b_block_reset_copy_step =
+        const auto k_block_reset_copy_step =
             make_multi_index(-b_grid_desc_bk0_n_bk1.GetLength(I0), NPerBlock, 0);
 
         // gridwise GEMM pipeline
         // Only supports LoopScheduler::Default
-        const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_Selector<PipelineVer,
-                                                                          NumGemmKPrefetchStage,
-                                                                          LoopScheduler::Default>();
+        //const auto gridwise_gemm_pipeline = GridwiseGemmPipeline_Selector<PipelineVer,
+        //                                                                  NumGemmKPrefetchStage,
+        //                                                                  LoopScheduler::Default>();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
             (a_grid_desc_ak0_m_ak1.GetLength(I0) * a_grid_desc_ak0_m_ak1.GetLength(I2)) /
@@ -655,7 +655,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
         // Acc matrix threadwise copy: AccVGPR to VGPR and downcast to XDL input data type
         constexpr auto acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4 =
-            blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
+            qk_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4();
 
         constexpr auto m0 = acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I0);
         constexpr auto n0 = acc_thread_desc_m0_n0_m1_n1_m2_n2_n3_n4.GetLength(I1);
@@ -684,9 +684,9 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         // A1 matrix in AccVGPR
         // N2 num_groups_per_blk, N3 num_input_blks, N4 group_size
         constexpr auto AccN3 =
-            blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLength(I6);
+            qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLength(I6);
         constexpr auto AccM2 =
-            blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLength(I4);
+            qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLength(I4);
 
         constexpr auto A1ThreadSlice_K0_M_K1 =
             make_tuple(Number<Gemm1KPerBlock / n4 / AccN3>{}, Number<m0 * m1 * m2>{}, Number<n4>{});
@@ -797,8 +797,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
         // get acc0 8D thread cluster
         constexpr auto thread_cluster_m0_n0_m1_n1_m2_n2_n3_n4 =
-            blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths() /
-            blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+            qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths() /
+            qk_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
         constexpr auto tm0 = thread_cluster_m0_n0_m1_n1_m2_n2_n3_n4.At(I0);
         constexpr auto tn0 = thread_cluster_m0_n0_m1_n1_m2_n2_n3_n4.At(I1);
         constexpr auto tm1 = thread_cluster_m0_n0_m1_n1_m2_n2_n3_n4.At(I2);
@@ -828,7 +828,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         constexpr auto thread_slice_desc_m_n =
             make_naive_tensor_descriptor_packed(make_tuple(m0 * m1 * m2, n0 * n1 * n2 * n3 * n4));
 
-        auto blockwise_softmax = BlockwiseSoftmax<BlockSize,
+        auto blockwise_softmax = BlockwiseSoftmax_v1<BlockSize,
                                                   FloatGemmAcc,
                                                   decltype(threadid_to_m_n_thread_cluster_adaptor),
                                                   decltype(thread_cluster_desc_m_n),
@@ -863,7 +863,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
         auto lse_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatLSE>(
             lse_thread_desc_mblock_mrepeat_mwave_mperxdl.GetElementSpaceSize());
 
-        auto acc0_thread_origin = blockwise_gemm.CalculateCThreadOriginDataIndex8D(
+        auto acc0_thread_origin = qk_blockwise_gemm.CalculateCThreadOriginDataIndex8D(
             Number<0>{}, Number<0>{}, Number<0>{}, Number<0>{});
         auto lse_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             FloatGemmAcc,
@@ -886,6 +886,9 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
         // gemm1 K loop
         index_t gemm1_k_block_outer_index = 0;
+	index_t k_block_start = 0;
+        index_t q_block_start = m_block_data_idx_on_grid;
+
 
         // z is random number matrix for dropout verify
         //
@@ -1072,6 +1075,13 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             block_sync_lds();
         }
 
+	q_blockwise_copy.RunRead(a_grid_desc_ak0_m_ak1,a_grid_buf);
+        //Prefetch K[NxKperStep]
+        k_blockwise_copy.RunRead(b_grid_desc_bk0_n_bk1,b_grid_buf);
+        q_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
+                                            q_block_slice_copy_step);
+        k_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
+                                            k_block_slice_copy_step);
         do
         {
             auto n_block_data_idx_on_grid =
@@ -1081,32 +1091,88 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             {
                 continue;
             }
-            raise_priority();
             // gemm0
-            gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
-                                                                   a_block_desc_ak0_m_ak1,
-                                                                   a_blockwise_copy,
-                                                                   a_grid_buf,
-                                                                   a_block_buf,
-                                                                   a_block_slice_copy_step,
-                                                                   b_grid_desc_bk0_n_bk1,
-                                                                   b_block_desc_bk0_n_bk1,
-                                                                   b_blockwise_copy,
-                                                                   b_grid_buf,
-                                                                   b_block_buf,
-                                                                   b_block_slice_copy_step,
-                                                                   blockwise_gemm,
-                                                                   acc_thread_buf,
-                                                                   num_k_block_main_loop);
+	    //
+	    //
+	    //
+            raise_priority();
+            {
+
+                //Initialize QK.acc buffer;;
+                //FIXME use DS_READ QK.acc, offset(ffffffff),
+                //
+                acc_thread_buf.Clear();
+                //wait for K preload to complete
+                vm_waitcnt(0);
+                q_blockwise_copy.RunWrite(a_block_desc_ak0_m_ak1,q_block_buf);
+                k_blockwise_copy.RunWrite(b_block_desc_bk0_n_bk1,k_block_buf);
+	        q_blockwise_copy.RunRead(a_grid_desc_ak0_m_ak1,a_grid_buf);
+                k_blockwise_copy.RunRead(b_grid_desc_bk0_n_bk1,b_grid_buf);
+
+                //main body
+                if (num_k_block_main_loop > 2)
+                {
+                    index_t i =0;
+                    do {
+
+                        lds_waitcnt(0); // wait for LDS write to complete by all WG threads()
+                        wg_sync();
+
+                        qk_blockwise_gemm.Run(k_block_buf, q_block_buf, acc_thread_buf);
+                        q_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
+                                            q_block_slice_copy_step);
+                        k_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
+                                            k_block_slice_copy_step);
+                        //write i+1 buffer
+                        vm_waitcnt(0); // wait for global reads return data
+                        q_blockwise_copy.RunWrite(a_block_desc_ak0_m_ak1,q_block_buf);
+                        k_blockwise_copy.RunWrite(b_block_desc_bk0_n_bk1,k_block_buf);
+                        q_blockwise_copy.RunRead(a_grid_desc_ak0_m_ak1,a_grid_buf);
+                        k_blockwise_copy.RunRead(b_grid_desc_bk0_n_bk1,b_grid_buf);
+                        i++;
+
+                    } while(i < (num_k_block_main_loop-2));
+                }
+                {
+                //tail
+                    lds_waitcnt(0); // wait for LDS write to complete by all WG threads()
+                    wg_sync();
+                    qk_blockwise_gemm.Run(k_block_buf, q_block_buf, acc_thread_buf);
+
+                    vm_waitcnt(0); // wait for global reads return data
+                    q_blockwise_copy.RunWrite(a_block_desc_ak0_m_ak1,q_block_buf);
+                    k_blockwise_copy.RunWrite(b_block_desc_bk0_n_bk1,k_block_buf);
+                    lds_waitcnt(0); // wait for LDS write to complete by all WG threads()
+                    wg_sync();
+                    qk_blockwise_gemm.Run(k_block_buf, q_block_buf, acc_thread_buf);
+                }
+
+
+            //gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
+            //                                                       a_block_desc_ak0_m_ak1,
+            //                                                       a_blockwise_copy,
+            //                                                       a_grid_buf,
+            //                                                       a_block_buf,
+            //                                                       a_block_slice_copy_step,
+            //                                                       b_grid_desc_bk0_n_bk1,
+            //                                                       b_block_desc_bk0_n_bk1,
+            //                                                       b_blockwise_copy,
+            //                                                       b_grid_buf,
+            //                                                       b_block_buf,
+            //                                                       b_block_slice_copy_step,
+            //                                                       blockwise_gemm,
+            //                                                       acc_thread_buf,
+            //                                                       num_k_block_main_loop);
+	    }
             lower_priority();
 
             // 8d thread_desc in thread scope
             constexpr auto c_thread_lengths =
-                blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+                qk_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
 
             // 8d block_desc in block scope
             constexpr auto c_block_lengths =
-                blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+                qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
 
             constexpr auto M0 = c_block_lengths[I0];
             constexpr auto N0 = c_block_lengths[I1];
@@ -1132,7 +1198,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
 
             // do MNK padding or upper triangular masking
-            if constexpr(MaskOutUpperTriangle || PadN)
+            if ((MaskOutUpperTriangle || PadN) && ((k_block_start + NPerBlock) >= q_block_start + MPerBlock))
             {
 
                 static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
@@ -1161,6 +1227,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
+            // preload gemm1 B data into VGPR 
+            b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
+
+            b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
+                                                 b1_block_slice_copy_step);
             // softmax
             SoftmaxBuf& max = blockwise_softmax.max_value_buf;
             SoftmaxBuf& sum = blockwise_softmax.sum_value_buf;
@@ -1249,10 +1320,10 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 acc1_thread_buf.Clear();
 
                 // preload data into LDS
-                b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
+                //b1_blockwise_copy.RunRead(b1_grid_desc_bk0_n_bk1, b1_grid_buf);
 
-                b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
-                                                     b1_block_slice_copy_step);
+                //b1_blockwise_copy.MoveSrcSliceWindow(b1_grid_desc_bk0_n_bk1,
+                //                                     b1_block_slice_copy_step);
 
                 block_sync_lds(); // wait for reduction LDS read
 
@@ -1285,6 +1356,13 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 }
                 // tail
                 {
+                    q_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
+                                                q_block_reset_copy_step); // rewind K
+                    k_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
+                                                k_block_reset_copy_step); // rewind K and step N
+	            q_blockwise_copy.RunRead(a_grid_desc_ak0_m_ak1,a_grid_buf);
+                    //Prefetch K[NxKperStep]
+                    k_blockwise_copy.RunRead(b_grid_desc_bk0_n_bk1,b_grid_buf);
                     a1_blockwise_copy.Run(
                         acc_thread_desc_k0_m_k1,
                         make_tuple(
@@ -1294,7 +1372,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                         make_tuple(I0, I0, I0),
                         a1_thread_buf);
 
-                    block_sync_lds();
+                    lds_waitcnt(0); // wait for LDS write to complete by all WG threads()
+		    wg_sync();
 
                     gemm1_blockwise_gemm.Run(a1_thread_buf, b1_block_buf, acc1_thread_buf);
                 }
@@ -1339,16 +1418,17 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 });
             });
 
-            a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
-                                                a_block_reset_copy_step); // rewind K
-            b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
-                                                b_block_reset_copy_step); // rewind K and step N
 
             // update before next j iteration
             running_max = running_max_new;
             running_sum = running_sum_new;
 
+            q_blockwise_copy.MoveSrcSliceWindow(a_grid_desc_ak0_m_ak1,
+                                            q_block_slice_copy_step);
+            k_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
+                                            k_block_slice_copy_step);
             block_sync_lds(); // wait for gemm1 LDS read
+	    k_block_start = k_block_start + NPerBlock;
         } while(++gemm1_k_block_outer_index < num_gemm1_k_block_outer_loop); // end j loop
 
         // Calculate max + ln(sum) and write out
