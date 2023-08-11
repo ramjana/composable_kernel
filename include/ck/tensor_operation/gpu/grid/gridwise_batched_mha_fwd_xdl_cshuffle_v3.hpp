@@ -1084,6 +1084,7 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                             k_block_slice_copy_step);
         do
         {
+	   // find alternate approach for skipping computation for white tile(s)
             auto n_block_data_idx_on_grid =
                 __builtin_amdgcn_readfirstlane(gemm1_k_block_outer_index * NPerBlock);
             if(c0_matrix_mask.IsTileSkippable(
@@ -1101,14 +1102,17 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 //Initialize QK.acc buffer;;
                 //FIXME use DS_READ QK.acc, offset(ffffffff),
                 //
-                acc_thread_buf.Clear();
                 //wait for K preload to complete
+		//find out why acc initialization didnt happen before ds_write
+                acc_thread_buf.Clear();
                 vm_waitcnt(0);
                 q_blockwise_copy.RunWrite(a_block_desc_ak0_m_ak1,q_block_buf);
                 k_blockwise_copy.RunWrite(b_block_desc_bk0_n_bk1,k_block_buf);
 	        q_blockwise_copy.RunRead(a_grid_desc_ak0_m_ak1,a_grid_buf);
                 k_blockwise_copy.RunRead(b_grid_desc_bk0_n_bk1,b_grid_buf);
-
+		//if (num_k_block_main_loop > 1)
+		//{
+		//}
                 //main body
                 if (num_k_block_main_loop > 2)
                 {
@@ -1138,13 +1142,12 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                     lds_waitcnt(0); // wait for LDS write to complete by all WG threads()
                     wg_sync();
                     qk_blockwise_gemm.Run(k_block_buf, q_block_buf, acc_thread_buf);
-
                     vm_waitcnt(0); // wait for global reads return data
                     q_blockwise_copy.RunWrite(a_block_desc_ak0_m_ak1,q_block_buf);
                     k_blockwise_copy.RunWrite(b_block_desc_bk0_n_bk1,k_block_buf);
                     lds_waitcnt(0); // wait for LDS write to complete by all WG threads()
                     wg_sync();
-                    qk_blockwise_gemm.Run(k_block_buf, q_block_buf, acc_thread_buf);
+		    qk_blockwise_gemm.Run(k_block_buf, q_block_buf, acc_thread_buf);
                 }
 
 
@@ -1218,6 +1221,8 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                         acc_element_op(acc_thread_buf(i), acc_thread_buf[i]);
                     }
                 });
+
+
             }
             else
             {
@@ -1404,14 +1409,17 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
             constexpr auto c_thread_buf_slice_n = c_thread_slice_desc_m_n.GetLength(I1);
 
             static_for<0, c_thread_buf_slice_m, 1>{}([&](auto iM) {
+	            FloatGemmAcc maxAdjust = math::exp(running_max[iM] - running_max_new[iM]);
+                    FloatGemmAcc div_scale = 1/running_sum_new[iM];
+	            FloatGemmAcc maxAdjust1 = math::exp(max[iM] - running_max_new[iM]);
                 static_for<0, c_thread_buf_slice_n, 1>{}([&](auto iN) {
                     auto I = Number<c_thread_slice_desc_m_n.CalculateOffset(make_tuple(iM, iN))>{};
                     FloatGemmAcc acc1 = acc1_thread_buf[I]; // P*V
                     FloatGemmAcc c    = c_thread_buf[I];    // O
-                    FloatGemmAcc c_new =
-                        (running_sum[iM] * math::exp(running_max[iM] - running_max_new[iM]) * c +
-                         math::exp(max[iM] - running_max_new[iM]) * acc1) /
-                        running_sum_new[iM]; // Formula by Dao et al.,
+                    FloatGemmAcc c_new = running_sum[iM] * maxAdjust * c + maxAdjust1*acc1 /  div_scale;
+                        //(running_sum[iM] * math::exp(running_max[iM] - running_max_new[iM]) * c +
+                        // math::exp(max[iM] - running_max_new[iM]) * acc1) /
+                        //running_sum_new[iM]; // Formula by Dao et al.,
                                              // https://arxiv.org/pdf/2205.14135v2.pdf section 3.1
 
                     c_thread_buf(I) = c_new; // O_new
