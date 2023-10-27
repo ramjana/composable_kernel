@@ -1082,6 +1082,64 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                                             q_block_slice_copy_step);
         k_blockwise_copy.MoveSrcSliceWindow(b_grid_desc_bk0_n_bk1,
                                             k_block_slice_copy_step);
+
+	// causal mask generation
+	// two accumulators
+	// upper traingular masked accumulator (-infinity)  when k_block_start == q_block_start
+	// zero-initialized accmulator when k_block_start + N_per_block < q_block_start
+	//
+        // 8d thread_desc in thread scope
+        constexpr auto c_thread_lengths =
+            qk_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+
+        // 8d block_desc in block scope
+        constexpr auto c_block_lengths =
+            qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+
+        constexpr auto M0_1 = c_block_lengths[I0];
+        constexpr auto N0_1 = c_block_lengths[I1];
+        constexpr auto M1_1 = c_block_lengths[I2];
+        constexpr auto N1_1 = c_block_lengths[I3];
+        constexpr auto M2_1 = c_block_lengths[I4];
+        constexpr auto N2_1 = c_block_lengths[I5];
+        constexpr auto N3_1 = c_block_lengths[I6];
+        constexpr auto N4_1 = c_block_lengths[I7];
+
+        using Acc0TileIterator = SpaceFillingCurve<
+            decltype(c_thread_lengths),
+            typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+            typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+            false>; // SnakeCurved
+	    
+        StaticBuffer<AddressSpaceEnum::Vgpr, FloatGemmAcc, acc_thread_buf.Size(), true>
+           masked_acc_thread_buf;
+
+
+        constexpr auto block_to_m_n_adaptor = make_single_stage_tensor_adaptor(
+                make_tuple(make_unmerge_transform(make_tuple(M0_1, M1_1, M2_1)),
+                           make_unmerge_transform(make_tuple(N0_1, N1_1, N2_1, N3_1, N4_1))),
+                make_tuple(Sequence<0>{}, Sequence<1>{}),
+                make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
+	auto n_block_idx_on_grid  =
+                __builtin_amdgcn_readfirstlane(block_work_idx_m* MPerBlock);
+        static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto idx) {
+            auto acc0_idx = Acc0TileIterator::GetIndex(idx) + acc0_thread_origin;
+            const index_t m_i =
+               block_to_m_n_adaptor.CalculateBottomIndex(acc0_idx)[I0];
+            const index_t n_j =
+               block_to_m_n_adaptor.CalculateBottomIndex(acc0_idx)[I1];
+            auto m_idx = m_i + m_block_data_idx_on_grid;
+            auto n_idx = n_j + n_block_idx_on_grid;
+            if(c0_matrix_mask.IsMaskedElement(m_idx, n_idx))
+            {
+                masked_acc_thread_buf(idx) = -ck::NumericLimits<float>::Infinity();
+            }
+	    else
+	    {
+                masked_acc_thread_buf(idx) = 0.0f;
+	    }
+         });
+          
         do
         {
 	   // find alternate approach for skipping computation for white tile(s)
@@ -1104,7 +1162,17 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 //
                 //wait for K preload to complete
 		//find out why acc initialization didnt happen before ds_write
-                acc_thread_buf.Clear();
+                if ((MaskOutUpperTriangle || PadN) && ((k_block_start + NPerBlock) >= q_block_start + MPerBlock))
+	        {
+                   static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
+                        //acc_element_op(acc_thread_buf(i), masked_acc_thread_buf[i]);
+			acc_thread_buf(i) = masked_acc_thread_buf(i);
+                   });
+		}
+	        else
+		{
+                   acc_thread_buf.Clear();
+	        }	
                 vm_waitcnt(0);
                 q_blockwise_copy.RunWrite(a_block_desc_ak0_m_ak1,q_block_buf);
                 k_blockwise_copy.RunWrite(b_block_desc_bk0_n_bk1,k_block_buf);
@@ -1151,31 +1219,16 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 }
 
 
-            //gridwise_gemm_pipeline.template Run<HasMainKBlockLoop>(a_grid_desc_ak0_m_ak1,
-            //                                                       a_block_desc_ak0_m_ak1,
-            //                                                       a_blockwise_copy,
-            //                                                       a_grid_buf,
-            //                                                       a_block_buf,
-            //                                                       a_block_slice_copy_step,
-            //                                                       b_grid_desc_bk0_n_bk1,
-            //                                                       b_block_desc_bk0_n_bk1,
-            //                                                       b_blockwise_copy,
-            //                                                       b_grid_buf,
-            //                                                       b_block_buf,
-            //                                                       b_block_slice_copy_step,
-            //                                                       blockwise_gemm,
-            //                                                       acc_thread_buf,
-            //                                                       num_k_block_main_loop);
 	    }
             lower_priority();
 
             // 8d thread_desc in thread scope
-            constexpr auto c_thread_lengths =
-                qk_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+            //constexpr auto c_thread_lengths =
+            //    qk_blockwise_gemm.GetCThreadDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
 
             // 8d block_desc in block scope
-            constexpr auto c_block_lengths =
-                qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
+            //constexpr auto c_block_lengths =
+            //    qk_blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_N2_N3_N4().GetLengths();
 
             constexpr auto M0 = c_block_lengths[I0];
             constexpr auto N0 = c_block_lengths[I1];
@@ -1188,11 +1241,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
 
             // works like multi-dimension static_for (static_ford), but provides both the linear
             // index as well as n-d index
-            using Acc0TileIterator = SpaceFillingCurve<
-                decltype(c_thread_lengths),
-                typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
-                typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
-                false>; // SnakeCurved
+            //using Acc0TileIterator = SpaceFillingCurve<
+            //    decltype(c_thread_lengths),
+            //    typename arithmetic_sequence_gen<0, c_thread_lengths.Size(), 1>::type,
+            //    typename uniform_sequence_gen<c_thread_lengths.Size(), 1>::type,
+            //    false>; // SnakeCurved
 
             constexpr auto block_idx_to_m_n_adaptor = make_single_stage_tensor_adaptor(
                 make_tuple(make_unmerge_transform(make_tuple(M0, M1, M2)),
@@ -1201,34 +1254,35 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 make_tuple(Sequence<0, 2, 4>{}, Sequence<1, 3, 5, 6, 7>{}));
 
             // do MNK padding or upper triangular masking
-            if ((MaskOutUpperTriangle || PadN) && ((k_block_start + NPerBlock) >= q_block_start + MPerBlock))
-            {
+            //if ((MaskOutUpperTriangle || PadN) && ((k_block_start + NPerBlock) >= q_block_start + MPerBlock))
+	    //if(0)
+            //{
 
-                static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
-                    auto acc0_thread_idx = Acc0TileIterator::GetIndex(i) + acc0_thread_origin;
-                    auto m_local =
-                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
-                    auto n_local =
-                        block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
-                    auto m_global = m_local + m_block_data_idx_on_grid;
-                    auto n_global = n_local + n_block_data_idx_on_grid;
-                    if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
-                    {
-                        acc_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
-                    }
-                    else
-                    {
-                        acc_element_op(acc_thread_buf(i), acc_thread_buf[i]);
-                    }
-                });
-
-
-            }
-            else
-            {
-                static_for<0, acc_thread_buf.Size(), 1>{}(
+            //    static_for<0, Acc0TileIterator::GetNumOfAccess(), 1>{}([&](auto i) {
+            //        auto acc0_thread_idx = Acc0TileIterator::GetIndex(i) + acc0_thread_origin;
+            //        auto m_local =
+            //            block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I0];
+            //        auto n_local =
+            //            block_idx_to_m_n_adaptor.CalculateBottomIndex(acc0_thread_idx)[I1];
+            //        auto m_global = m_local + m_block_data_idx_on_grid;
+            //        auto n_global = n_local + n_block_data_idx_on_grid;
+            //        if(c0_matrix_mask.IsMaskedElement(m_global, n_global))
+            //        {
+            //            acc_thread_buf(i) = -ck::NumericLimits<float>::Infinity();
+            //        }
+            //        else
+            //        {
+            //            acc_element_op(acc_thread_buf(i), acc_thread_buf[i]);
+            //        }
+            //    });
+            //}
+            //else
+            //{
+            //    static_for<0, acc_thread_buf.Size(), 1>{}(
+            //        [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
+            //}
+            static_for<0, acc_thread_buf.Size(), 1>{}(
                     [&](auto i) { acc_element_op(acc_thread_buf(i), acc_thread_buf[i]); });
-            }
 
             block_sync_lds(); // wait for lds read in gemm0 blockwise gemm
 
@@ -1306,10 +1360,6 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                     make_multi_index(0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
             }
 
-            // TODO: may convert to log domain
-            running_max_new = mathext::max(max, running_max);
-            running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
-                              mathext::exp(max - running_max_new) * sum;
 
             raise_priority();
             // gemm1
@@ -1407,6 +1457,11 @@ struct GridwiseBatchedMultiheadAttentionForward_Xdl_CShuffle
                 make_tuple(cm0 * cm1 * cm2, cn0 * cn1 * cn2 * cn3 * cn4));
             constexpr auto c_thread_buf_slice_m = c_thread_slice_desc_m_n.GetLength(I0);
             constexpr auto c_thread_buf_slice_n = c_thread_slice_desc_m_n.GetLength(I1);
+
+            // TODO: may convert to log domain
+            running_max_new = mathext::max(max, running_max);
+            running_sum_new = mathext::exp(running_max - running_max_new) * running_sum +
+                              mathext::exp(max - running_max_new) * sum;
 
             static_for<0, c_thread_buf_slice_m, 1>{}([&](auto iM) {
 	            FloatGemmAcc maxAdjust = math::exp(running_max[iM] - running_max_new[iM]);

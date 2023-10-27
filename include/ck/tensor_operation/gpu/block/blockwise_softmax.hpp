@@ -196,7 +196,7 @@ struct BlockwiseSoftmax_v1
     {
         // find max value
         static_for<0, MRepeat, 1>{}([&](auto I) {
-            max_value_buf(I) = reduce::Max::template GetIdentityValue<AccDataType>();
+            max_value_buf(I) = reduce::Max3::template GetIdentityValue<AccDataType>();
         });
         ThreadwiseMaxReduce::Reduce(in_thread_buf, max_value_buf);
         static_for<0, MRepeat, 1>{}([&](auto I) {
